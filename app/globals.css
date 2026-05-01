@@ -1,0 +1,163 @@
+@import "tailwindcss";
+
+@theme {
+  --color-rdv-paper: #F5F1E8;
+  --color-rdv-cream: #FBF7EE;
+  --color-rdv-ink: #0A0908;
+  --color-rdv-coal: #1A1816;
+  --color-rdv-rec: #FF3D2E;
+  --color-rdv-rec-hot: #FF5947;
+  --color-rdv-muted: #6B6660;
+  --color-rdv-line: #DDD7CA;
+  --color-rdv-soft: #EAE3D2;
+  --color-rdv-amber: #F0B33C;
+  --color-rdv-green: #7CB342;
+  --color-rdv-blue: #4A90E2;
+
+  --font-sans: "Plus Jakarta Sans", -apple-system, system-ui, sans-serif;
+  --font-display: "Instrument Serif", "Playfair Display", Georgia, serif;
+  --font-mono: "Geist Mono", "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html, body {
+    background: var(--color-rdv-paper);
+    color: var(--color-rdv-ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv11";
+  }
+
+  *::selection {
+    background: var(--color-rdv-rec);
+    color: var(--color-rdv-cream);
+  }
+
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-track { background: var(--color-rdv-soft); }
+  *::-webkit-scrollbar-thumb {
+    background: var(--color-rdv-ink);
+    border: 2px solid var(--color-rdv-soft);
+  }
+}
+
+@layer components {
+  /* ── Eyebrow (mono uppercase com pulsing dot) ─────────────────── */
+  .rdv-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--color-rdv-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .rdv-rec-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--color-rdv-rec);
+    box-shadow: 0 0 8px var(--color-rdv-rec);
+    animation: rdv-pulse 2s infinite;
+  }
+
+  @keyframes rdv-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(0.9); }
+  }
+
+  /* ── Display (serif italic) ───────────────────────────────────── */
+  .rdv-display {
+    font-family: var(--font-display);
+    font-weight: 400;
+  }
+  .rdv-display em {
+    font-style: italic;
+  }
+
+  /* ── Mono utility ─────────────────────────────────────────────── */
+  .rdv-mono {
+    font-family: var(--font-mono);
+  }
+
+  /* ── Buttons brutalist ────────────────────────────────────────── */
+  .rdv-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 16px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    border: 1.5px solid var(--color-rdv-ink);
+    cursor: pointer;
+    transition: transform 120ms, box-shadow 120ms;
+    background: transparent;
+    color: var(--color-rdv-ink);
+    text-decoration: none;
+  }
+  .rdv-btn:hover:not(:disabled) {
+    transform: translate(-1px, -1px);
+    box-shadow: 3px 3px 0 0 var(--color-rdv-ink);
+  }
+  .rdv-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .rdv-btn-rec {
+    background: var(--color-rdv-rec);
+    color: white;
+  }
+  .rdv-btn-rec:hover:not(:disabled) {
+    background: var(--color-rdv-rec-hot);
+  }
+
+  .rdv-btn-ghost {
+    background: var(--color-rdv-cream);
+  }
+
+  /* ── Cards ────────────────────────────────────────────────────── */
+  .rdv-card {
+    background: var(--color-rdv-cream);
+    border: 1.5px solid var(--color-rdv-ink);
+    box-shadow: 4px 4px 0 0 var(--color-rdv-ink);
+  }
+  .rdv-card-rec {
+    background: var(--color-rdv-cream);
+    border: 1.5px solid var(--color-rdv-rec);
+    box-shadow: 6px 6px 0 0 var(--color-rdv-rec);
+  }
+
+  /* ── Inputs ───────────────────────────────────────────────────── */
+  .rdv-input {
+    width: 100%;
+    border: 1.5px solid var(--color-rdv-ink);
+    background: white;
+    padding: 12px 14px;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    outline: none;
+  }
+  .rdv-input:focus {
+    box-shadow: 3px 3px 0 0 var(--color-rdv-ink);
+  }
+
+  /* ── Animations ───────────────────────────────────────────────── */
+  .rdv-spin {
+    animation: rdv-rotate 0.8s linear infinite;
+  }
+  @keyframes rdv-rotate {
+    to { transform: rotate(360deg); }
+  }
+}
