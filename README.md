@@ -1,8 +1,21 @@
-# Radar Viral · v2
+# Radar Viral
 
-> Versão Next.js 16 do Radar Viral com sidebar fixed e design alinhado a Sequência Viral / Reels Viral.
+> Inteligência diária cross-platform — IG · YouTube · notícias · newsletters. Brief IA + temas em alta.
 
-**v1 continua intocada** em `code/viral-hunter/` (Vite + React + Cream & Lime). Esta v2 lê do **mesmo Neon DB** (zero risco pra dados).
+**Versão oficial** desde 2026-05-01 (Next 16 + sidebar fixed + design alinhado a Sequência Viral / Reels Viral · cream + REC coral + brutalist).
+
+**v1 legacy** preservada em `code/_archive/viral-hunter-v1-legacy/` (Vite + Cream & Lime original) — Gabriel mantém por gosto pessoal e ainda viva em prod via cron até paridade total nesta versão.
+
+## Sucessão gradual
+
+| Módulo | Status v2 |
+|---|---|
+| Dashboard (Brief IA + Temas + Narrativas + Ideias) | ✅ pronto |
+| Niche switcher | 🟡 pendente |
+| Instagram, YouTube, News, Newsletters, Saved, Settings, Admin | 🟡 placeholders linkando v1 |
+| Crons (refresh / brief / newsletters) | 🟡 ainda na v1 — quando migrar, desativar v1 prod |
+
+A v2 lê do **mesmo Neon DB** que v1 popula via cron. Zero risco pra dados durante a transição.
 
 ---
 

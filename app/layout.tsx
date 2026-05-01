@@ -26,13 +26,13 @@ export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL ?? "https://radar.kaleidos.com.br",
   ),
-  title: "Radar Viral · v2",
+  title: "Radar Viral — Inteligência diária cross-platform",
   description:
     "Inteligência diária de tendências cross-platform: Instagram, YouTube, notícias e newsletters. Brief IA com temas em alta.",
   authors: [{ name: "Kaleidos" }],
   creator: "Kaleidos",
   openGraph: {
-    title: "Radar Viral · v2",
+    title: "Radar Viral — Inteligência diária cross-platform",
     description: "Brief IA + temas em alta cruzando IG, YouTube, news e newsletters.",
     type: "website",
     locale: "pt_BR",
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Radar Viral · v2",
+    title: "Radar Viral — Inteligência diária cross-platform",
     description: "Brief IA + temas em alta. Diário.",
     creator: "@madureira",
   },

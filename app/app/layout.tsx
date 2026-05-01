@@ -175,7 +175,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Menu size={16} />
           </button>
           <div className="rdv-eyebrow">
-            <span className="rdv-rec-dot" /> RADAR · v2
+            <span className="rdv-rec-dot" /> RADAR VIRAL
           </div>
           <div style={{ width: 32 }} />
         </header>
@@ -273,19 +273,6 @@ function SidebarContent({
           />
           <span className="rdv-display" style={{ fontSize: 22, lineHeight: 1, letterSpacing: "-0.02em" }}>
             Radar <em>Viral</em>
-          </span>
-          <span
-            className="rdv-mono"
-            style={{
-              fontSize: 8,
-              padding: "1px 5px",
-              background: "var(--color-rdv-rec)",
-              color: "white",
-              fontWeight: 800,
-              letterSpacing: "0.16em",
-            }}
-          >
-            v2
           </span>
         </Link>
         {showCloseButton && (

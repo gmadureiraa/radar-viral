@@ -66,30 +66,8 @@ function Landing() {
           <span className="rdv-display" style={{ fontSize: 24, lineHeight: 1, letterSpacing: "-0.02em" }}>
             Radar <em>Viral</em>
           </span>
-          <span
-            className="rdv-mono"
-            style={{
-              fontSize: 9,
-              padding: "2px 6px",
-              background: "var(--color-rdv-ink)",
-              color: "var(--color-rdv-paper)",
-              letterSpacing: "0.16em",
-              fontWeight: 800,
-            }}
-          >
-            v2
-          </span>
         </a>
         <nav style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <a
-            href="https://radar.kaleidos.com.br"
-            target="_blank"
-            rel="noreferrer"
-            className="rdv-btn rdv-btn-ghost"
-            style={{ padding: "8px 14px", fontSize: 10 }}
-          >
-            Ver v1 ↗
-          </a>
           {session.data?.user ? (
             <a href="/app" className="rdv-btn rdv-btn-rec" style={{ padding: "8px 14px", fontSize: 10 }}>
               Abrir app →
