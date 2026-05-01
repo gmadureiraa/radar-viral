@@ -9,6 +9,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Newspaper, RefreshCw, Search, ExternalLink, Loader2, Clock } from "lucide-react";
 import { useActiveNiche } from "@/lib/niche-context";
 import { getJwtToken } from "@/lib/auth-client";
+import { PostDetailModal, type PostDetail } from "@/components/post-detail-modal";
+import { imgProxy } from "@/lib/img-proxy";
 import type { NewsArticleRow } from "@/app/api/data/news/route";
 
 type Period = "24h" | "72h" | "7d";
@@ -20,6 +22,7 @@ export default function NewsPage() {
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState<Period>("72h");
   const [search, setSearch] = useState("");
+  const [detail, setDetail] = useState<PostDetail | null>(null);
 
   const refresh = async () => {
     setLoading(true);
@@ -214,27 +217,46 @@ export default function NewsPage() {
       {filtered.length > 0 && (
         <div style={{ display: "grid", gap: 12 }}>
           {filtered.map((article) => (
-            <ArticleRow key={article.link} article={article} />
+            <ArticleRow
+              key={article.link}
+              article={article}
+              onClick={() =>
+                setDetail({
+                  kind: "news",
+                  refId: article.link,
+                  url: article.link,
+                  title: article.title,
+                  description: article.description,
+                  thumbnail: article.thumbnail,
+                  sourceName: article.source_name,
+                  publishedAt: article.pub_date,
+                  nicheSlug: article.niche,
+                })
+              }
+            />
           ))}
         </div>
       )}
+
+      <PostDetailModal detail={detail} onClose={() => setDetail(null)} />
     </main>
   );
 }
 
-function ArticleRow({ article }: { article: NewsArticleRow }) {
+function ArticleRow({ article, onClick }: { article: NewsArticleRow; onClick: () => void }) {
   const ageLabel = article.pub_date ? timeAgo(article.pub_date) : "—";
   return (
-    <a
-      href={article.link}
-      target="_blank"
-      rel="noreferrer"
+    <button
+      type="button"
+      onClick={onClick}
       className="rdv-card"
       style={{
         padding: 16,
         display: "flex",
         gap: 16,
-        textDecoration: "none",
+        cursor: "pointer",
+        textAlign: "left",
+        background: "var(--color-rdv-cream)",
         color: "inherit",
         transition: "transform 0.15s, box-shadow 0.15s",
       }}
@@ -253,7 +275,7 @@ function ArticleRow({ article }: { article: NewsArticleRow }) {
             flexShrink: 0,
             width: 120,
             height: 80,
-            background: `url(${article.thumbnail}) center/cover`,
+            background: `url(${imgProxy(article.thumbnail)}) center/cover`,
             border: "1px solid var(--color-rdv-line)",
           }}
         />
@@ -300,7 +322,7 @@ function ArticleRow({ article }: { article: NewsArticleRow }) {
         )}
       </div>
       <ExternalLink size={14} style={{ flexShrink: 0, opacity: 0.4, marginTop: 4 }} />
-    </a>
+    </button>
   );
 }
 

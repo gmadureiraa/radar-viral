@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { Youtube, RefreshCw, Loader2, ExternalLink } from "lucide-react";
 import { useActiveNiche } from "@/lib/niche-context";
 import { getJwtToken } from "@/lib/auth-client";
+import { PostDetailModal, type PostDetail } from "@/components/post-detail-modal";
 import type { VideoRow } from "@/app/api/data/videos/route";
 
 export default function YouTubePage() {
@@ -16,6 +17,7 @@ export default function YouTubePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState<7 | 14 | 30>(7);
+  const [detail, setDetail] = useState<PostDetail | null>(null);
 
   const refresh = async () => {
     setLoading(true);
@@ -128,23 +130,45 @@ export default function YouTubePage() {
       {videos.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
           {videos.map((v) => (
-            <VideoCard key={v.video_id} video={v} />
+            <VideoCard
+              key={v.video_id}
+              video={v}
+              onClick={() =>
+                setDetail({
+                  kind: "youtube",
+                  refId: v.video_id,
+                  url: v.link,
+                  title: v.title,
+                  thumbnail: v.thumbnail_url,
+                  authorName: v.channel_name,
+                  publishedAt: v.published_at,
+                })
+              }
+            />
           ))}
         </div>
       )}
+
+      <PostDetailModal detail={detail} onClose={() => setDetail(null)} />
     </main>
   );
 }
 
-function VideoCard({ video }: { video: VideoRow }) {
+function VideoCard({ video, onClick }: { video: VideoRow; onClick: () => void }) {
   const ageLabel = timeAgo(video.published_at);
   return (
-    <a
-      href={video.link}
-      target="_blank"
-      rel="noreferrer"
+    <button
+      type="button"
+      onClick={onClick}
       className="rdv-card"
-      style={{ padding: 0, overflow: "hidden", textDecoration: "none", color: "inherit" }}
+      style={{
+        padding: 0,
+        overflow: "hidden",
+        textAlign: "left",
+        cursor: "pointer",
+        color: "inherit",
+        background: "var(--color-rdv-cream)",
+      }}
     >
       <div
         style={{
@@ -196,10 +220,10 @@ function VideoCard({ video }: { video: VideoRow }) {
             color: "var(--color-rdv-muted)",
           }}
         >
-          <ExternalLink size={10} /> ver no YouTube
+          <ExternalLink size={10} /> ver detalhes
         </div>
       </div>
-    </a>
+    </button>
   );
 }
 

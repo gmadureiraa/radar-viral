@@ -24,6 +24,8 @@ import {
 import { useActiveNiche } from "@/lib/niche-context";
 import { getJwtToken } from "@/lib/auth-client";
 import { igPostScore, igScoreTier } from "@/lib/ig-score";
+import { imgProxy } from "@/lib/img-proxy";
+import { PostDetailModal, type PostDetail } from "@/components/post-detail-modal";
 import type { InstagramPostRow } from "@/app/api/data/instagram/posts/route";
 
 type TabId = "all" | "reels" | "carousel" | "image";
@@ -37,6 +39,7 @@ export default function InstagramPage() {
   const [tab, setTab] = useState<TabId>("all");
   const [sortBy, setSortBy] = useState<SortBy>("score");
   const [search, setSearch] = useState("");
+  const [detailPost, setDetailPost] = useState<PostDetail | null>(null);
 
   const refresh = async () => {
     setLoading(true);
@@ -176,12 +179,36 @@ export default function InstagramPage() {
       {filteredPosts.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
           {filteredPosts.map((post) => (
-            <PostCard key={post.shortcode} post={post} />
+            <PostCard key={post.shortcode} post={post} onClick={() => setDetailPost(toDetail(post))} />
           ))}
         </div>
       )}
+
+      <PostDetailModal detail={detailPost} onClose={() => setDetailPost(null)} />
     </main>
   );
+}
+
+function toDetail(post: InstagramPostRow): PostDetail {
+  const isVideo = post.type === "Video" || Boolean(post.video_url);
+  const url = `https://instagram.com/p/${post.shortcode}/`;
+  return {
+    kind: "instagram",
+    refId: post.shortcode,
+    url,
+    title: post.caption ? post.caption.split("\n")[0].slice(0, 120) : `@${post.account_handle}`,
+    description: post.caption,
+    thumbnail: post.display_url ?? post.child_urls?.[0] ?? null,
+    authorName: `@${post.account_handle}`,
+    publishedAt: post.posted_at,
+    isReel: isVideo,
+    nicheSlug: post.niche,
+    meta: {
+      likes: post.likes,
+      comments: post.comments,
+      views: post.views,
+    },
+  };
 }
 
 // ─── Components ─────────────────────────────────────────────────────────
@@ -246,9 +273,8 @@ function SubTabs({
   );
 }
 
-function PostCard({ post }: { post: InstagramPostRow }) {
+function PostCard({ post, onClick }: { post: InstagramPostRow; onClick: () => void }) {
   const [slideIdx, setSlideIdx] = useState(0);
-  const url = `https://instagram.com/p/${post.shortcode}/`;
   const isCarousel = (post.child_urls?.length ?? 0) > 1;
   const isVideo = post.type === "Video" || Boolean(post.video_url);
   const score = igPostScore(post);
@@ -277,18 +303,27 @@ function PostCard({ post }: { post: InstagramPostRow }) {
 
   return (
     <div className="rdv-card" style={{ overflow: "hidden", display: "flex", flexDirection: "column", padding: 0 }}>
-      <a
-        href={url}
-        target="_blank"
-        rel="noreferrer"
-        style={{ textDecoration: "none", color: "inherit", flex: 1, display: "flex", flexDirection: "column" }}
+      <button
+        type="button"
+        onClick={onClick}
+        style={{
+          background: "transparent",
+          border: "none",
+          padding: 0,
+          textAlign: "left",
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          cursor: "pointer",
+          color: "inherit",
+        }}
       >
         <div
           style={{
             position: "relative",
             aspectRatio: isVideo ? "9/16" : "4/5",
             background: currentSlide
-              ? `url(${currentSlide}) center/cover`
+              ? `url(${imgProxy(currentSlide)}) center/cover`
               : "linear-gradient(135deg, #2a1a14, #1a1a1a)",
             borderBottom: "1.5px solid var(--color-rdv-ink)",
           }}
@@ -409,7 +444,7 @@ function PostCard({ post }: { post: InstagramPostRow }) {
             )}
           </div>
         </div>
-      </a>
+      </button>
     </div>
   );
 }
