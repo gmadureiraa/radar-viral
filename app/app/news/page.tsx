@@ -5,7 +5,8 @@
  * Filtros: período (24h/72h/7d), busca, top fontes como chips.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Newspaper, RefreshCw, Search, ExternalLink, Loader2, Clock } from "lucide-react";
 import { useActiveNiche } from "@/lib/niche-context";
 import { getJwtToken } from "@/lib/auth-client";
@@ -16,13 +17,27 @@ import type { NewsArticleRow } from "@/app/api/data/news/route";
 type Period = "24h" | "72h" | "7d";
 
 export default function NewsPage() {
+  return (
+    <Suspense fallback={null}>
+      <NewsInner />
+    </Suspense>
+  );
+}
+
+function NewsInner() {
   const { active: niche } = useActiveNiche();
+  const params = useSearchParams();
+  const initialQuery = params.get("q") ?? "";
   const [articles, setArticles] = useState<NewsArticleRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState<Period>("72h");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialQuery);
   const [detail, setDetail] = useState<PostDetail | null>(null);
+
+  useEffect(() => {
+    setSearch(initialQuery);
+  }, [initialQuery]);
 
   const refresh = async () => {
     setLoading(true);

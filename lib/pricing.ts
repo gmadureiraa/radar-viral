@@ -8,21 +8,23 @@
  * - RV cobra por geração (custo Apify+Gemini por reel adaptado)
  * - Radar cobra por radar individual (cron próprio popula DB pra esse user)
  *
- * Custo por user Pro/mês:
- *   Apify scrape diário:
- *     ~20 IG handles × 3 posts/dia × 30d = 1800 posts × $0.005 = ~$9
- *   News RSS: zero (RSS é grátis)
- *   YouTube RSS: zero
- *   Gmail (newsletters): zero (user-side)
- *   Brief IA Gemini: ~$0.05/dia × 30 = $1.50
- *   Total: ~$10.50/mês = ~R$ 53
+ * Custo por user Pro/mês (medido via DB em 2026-04-29):
+ *   Apify Instagram scrape: ~$0.000346 por post real
+ *     6 IG handles × ~30 posts/run × 30 runs/mês = 5.400 posts
+ *     5.400 × $0.000346 = ~$1.87/mês (cap em 6 handles ajuda muito)
+ *   YouTube RSS: $0 (RSS gratuito)
+ *   News RSS: $0 (RSS gratuito)
+ *   Gmail (newsletters): $0 (user-side, com cap quota free)
+ *   Brief IA Gemini Flash: ~$0.0001 por brief × 30 briefs = ~$0.003/mês
+ *   Storage Neon + compute Vercel: rateado, < $0.10/user
+ *   TOTAL: ~$2 USD/mês ≈ R$ 10
  *
- * Plano Pro R$ 29,90 = NEGATIVO
- * Plano Pro R$ 79 = margem 50%
+ * Plano Pro R$ 49,90 → margem ~80% (R$ 40 líquido por user)
+ * Stripe BR: ~3,99% + R$ 0,40 por transação = ~R$ 2,40 deduzido
+ * Margem real: ~R$ 37,50 por user/mês = 75% líquido
  *
- * Decisão: começar mais ousado pra MVP — Pro R$ 49,90 com cap de 6 IG
- * handles + 3 YT + 6 RSS por user (não as 30 todas). Custo cai pra ~$3/mês,
- * margem 90%+. Quando user quer mais, vira upgrade.
+ * Conclusão: Pro R$ 49,90 está MUITO bem precificado. Espaço pra criar Pro+
+ * (cap maior + suporte premium) em R$ 99,90 mais à frente.
  */
 
 export const PLAN_CURRENCY = "brl" as const;

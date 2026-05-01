@@ -9,15 +9,20 @@
  * Neon serverless. Pra MVP, lib próprio + queries diretas.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   Activity,
   Sparkles,
   Bookmark,
+  BookmarkCheck,
   Flame,
   ArrowRight,
   Loader2,
+  Lightbulb,
+  ExternalLink,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useNeonSession, getJwtToken } from "@/lib/auth-client";
 import { useActiveNiche } from "@/lib/niche-context";
 
@@ -38,22 +43,35 @@ interface BriefCarouselIdea {
   angle: string;
 }
 
+interface BriefCrossPollination {
+  topic: string;
+  sources: string[];
+}
+
 interface DailyBrief {
   brief_date: string;
   narratives: BriefNarrative[] | null;
   hot_topics: BriefHotTopic[] | null;
   carousel_ideas: BriefCarouselIdea[] | null;
-  cross_pollination?: Array<{ topic: string; sources: string[] }>;
+  cross_pollination?: BriefCrossPollination[] | null;
   model_used?: string;
   cost_usd?: number;
+}
+
+interface SubInfo {
+  plan: "free" | "pro";
+  status: string;
+  isPaid: boolean;
 }
 
 export default function DashboardPage() {
   const session = useNeonSession();
   const { active: niche } = useActiveNiche();
   const [brief, setBrief] = useState<DailyBrief | null>(null);
+  const [sub, setSub] = useState<SubInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [savedTopics, setSavedTopics] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!session.data?.user) return;
@@ -62,15 +80,30 @@ export default function DashboardPage() {
       setLoading(true);
       try {
         const jwt = await getJwtToken();
-        const res = await fetch(`/api/brief?niche=${niche.id}`, {
-          headers: jwt ? { Authorization: `Bearer ${jwt}` } : undefined,
-        });
-        if (!res.ok) {
-          setError(`HTTP ${res.status}`);
+        const headers = jwt ? { Authorization: `Bearer ${jwt}` } : undefined;
+        const [briefRes, subRes, savedRes] = await Promise.all([
+          fetch(`/api/brief?niche=${niche.id}`, { headers }),
+          fetch("/api/me/subscription", { headers }),
+          fetch("/api/data/saved?platform=topic", { headers }),
+        ]);
+        if (!briefRes.ok) {
+          setError(`HTTP ${briefRes.status}`);
           return;
         }
-        const data = (await res.json()) as { brief: DailyBrief | null };
-        if (!cancel) setBrief(data.brief);
+        const briefData = (await briefRes.json()) as { brief: DailyBrief | null };
+        if (!cancel) setBrief(briefData.brief);
+
+        if (subRes.ok) {
+          const subData = (await subRes.json()) as SubInfo;
+          if (!cancel) setSub(subData);
+        }
+
+        if (savedRes.ok) {
+          const savedData = (await savedRes.json()) as {
+            items: Array<{ ref_id: string }>;
+          };
+          if (!cancel) setSavedTopics(new Set(savedData.items.map((i) => i.ref_id)));
+        }
       } catch (err) {
         if (!cancel) setError(err instanceof Error ? err.message : "Erro");
       } finally {
@@ -81,6 +114,52 @@ export default function DashboardPage() {
       cancel = true;
     };
   }, [session.data?.user?.id, niche.id]);
+
+  const handleSaveTopic = useCallback(
+    async (topic: BriefHotTopic) => {
+      const refId = topicRefId(topic.topic);
+      const isSaved = savedTopics.has(refId);
+      try {
+        const jwt = await getJwtToken();
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (jwt) headers["Authorization"] = `Bearer ${jwt}`;
+
+        if (isSaved) {
+          const res = await fetch(
+            `/api/data/saved?platform=topic&refId=${encodeURIComponent(refId)}`,
+            { method: "DELETE", headers },
+          );
+          if (!res.ok) throw new Error("Falha ao remover");
+          setSavedTopics((prev) => {
+            const next = new Set(prev);
+            next.delete(refId);
+            return next;
+          });
+          toast.success("Tema removido dos salvos");
+        } else {
+          const res = await fetch("/api/data/saved", {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              platform: "topic",
+              refId,
+              nicheSlug: niche.id,
+              title: topic.topic,
+              note: topic.source_summary,
+            }),
+          });
+          if (!res.ok) throw new Error("Falha ao salvar");
+          setSavedTopics((prev) => new Set(prev).add(refId));
+          toast.success("Tema salvo");
+        }
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro");
+      }
+    },
+    [savedTopics, niche.id],
+  );
 
   const userFirstName = useMemo(() => {
     const u = session.data?.user;
@@ -99,8 +178,19 @@ export default function DashboardPage() {
 
   return (
     <main style={{ padding: "32px 28px 80px", maxWidth: 1280, margin: "0 auto" }}>
-      <div className="rdv-eyebrow" style={{ marginBottom: 6 }}>
-        <span className="rdv-rec-dot" /> DASHBOARD · {briefDateLabel ?? "AGUARDANDO BRIEF"}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          marginBottom: 6,
+          flexWrap: "wrap",
+        }}
+      >
+        <div className="rdv-eyebrow">
+          <span className="rdv-rec-dot" /> DASHBOARD · {briefDateLabel ?? "AGUARDANDO BRIEF"}
+        </div>
+        {sub && <PlanPill plan={sub.plan} />}
       </div>
       <h1
         className="rdv-display"
@@ -114,9 +204,42 @@ export default function DashboardPage() {
         Olá{userFirstName ? <>, <em>{userFirstName}</em></> : <em></em>}.
         Aqui o que <em>importa</em> hoje.
       </h1>
-      <p style={{ fontSize: 14, color: "var(--color-rdv-muted)", marginBottom: 32 }}>
-        Brief diário cruzando Instagram, YouTube, notícias e newsletters.
+      <p style={{ fontSize: 14, color: "var(--color-rdv-muted)", marginBottom: 24 }}>
+        Brief diário cruzando Instagram, YouTube, notícias e newsletters
+        {niche.label ? <> em <strong>{niche.label}</strong></> : null}.
       </p>
+
+      {sub && !sub.isPaid && (
+        <div
+          style={{
+            background: "rgba(255, 61, 46, 0.06)",
+            border: "1.5px solid var(--color-rdv-rec)",
+            padding: "14px 16px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            marginBottom: 32,
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <div className="rdv-eyebrow" style={{ marginBottom: 4 }}>
+              <span className="rdv-rec-dot" /> RADAR COMPARTILHADO
+            </div>
+            <p style={{ fontSize: 13, color: "var(--color-rdv-ink)" }}>
+              Você está vendo o radar global. No Pro, ativamos cron individual com suas fontes.
+            </p>
+          </div>
+          <Link
+            href="/app/precos"
+            className="rdv-btn rdv-btn-rec"
+            style={{ padding: "10px 16px", fontSize: 11, whiteSpace: "nowrap" }}
+          >
+            Ver Pro <ArrowRight size={11} />
+          </Link>
+        </div>
+      )}
 
       {loading && !brief && (
         <div style={{ padding: 60, display: "flex", justifyContent: "center" }}>
@@ -146,11 +269,32 @@ export default function DashboardPage() {
             ) : (
               <div style={{ display: "grid", gap: 12 }}>
                 {brief.hot_topics.slice(0, 6).map((t, i) => (
-                  <TopicCard key={i} topic={t} rank={i + 1} />
+                  <TopicCard
+                    key={i}
+                    topic={t}
+                    rank={i + 1}
+                    saved={savedTopics.has(topicRefId(t.topic))}
+                    onToggleSave={() => void handleSaveTopic(t)}
+                  />
                 ))}
               </div>
             )}
           </Section>
+
+          {/* CROSS-POLLINATION — ponte entre fontes */}
+          {brief.cross_pollination?.length ? (
+            <Section
+              title="Pontes entre fontes"
+              subtitle="Quando o mesmo tema aparece em mais de um lugar"
+              icon={<Lightbulb size={16} />}
+            >
+              <div style={{ display: "grid", gap: 12 }}>
+                {brief.cross_pollination.slice(0, 4).map((c, i) => (
+                  <CrossCard key={i} cross={c} />
+                ))}
+              </div>
+            </Section>
+          ) : null}
 
           {/* NARRATIVAS DOMINANTES */}
           <Section
@@ -220,7 +364,17 @@ function Section({
   );
 }
 
-function TopicCard({ topic, rank }: { topic: BriefHotTopic; rank: number }) {
+function TopicCard({
+  topic,
+  rank,
+  saved,
+  onToggleSave,
+}: {
+  topic: BriefHotTopic;
+  rank: number;
+  saved: boolean;
+  onToggleSave: () => void;
+}) {
   const filled = topic.signal_count >= 6 ? 3 : topic.signal_count >= 3 ? 2 : 1;
   const intensity = filled === 3 ? "forte" : filled === 2 ? "médio" : "fraco";
   return (
@@ -273,21 +427,111 @@ function TopicCard({ topic, rank }: { topic: BriefHotTopic; rank: number }) {
         <p style={{ fontSize: 12.5, color: "var(--color-rdv-muted)", lineHeight: 1.45 }}>
           {topic.source_summary}
         </p>
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span className="rdv-mono" style={{ fontSize: 10, color: "var(--color-rdv-muted)" }}>
             {topic.signal_count} sinal{topic.signal_count === 1 ? "" : "is"} · {intensity}
           </span>
-          <button
-            type="button"
-            className="rdv-btn rdv-btn-ghost"
-            style={{ padding: "5px 10px", fontSize: 9 }}
-          >
-            <Bookmark size={10} /> Salvar
-          </button>
+          <div style={{ display: "flex", gap: 6 }}>
+            <Link
+              href={`/app/news?q=${encodeURIComponent(topic.topic)}`}
+              className="rdv-btn rdv-btn-ghost"
+              style={{ padding: "5px 10px", fontSize: 9 }}
+            >
+              <ExternalLink size={10} /> Ver notícias
+            </Link>
+            <button
+              type="button"
+              onClick={onToggleSave}
+              className="rdv-btn rdv-btn-ghost"
+              style={{
+                padding: "5px 10px",
+                fontSize: 9,
+                color: saved ? "var(--color-rdv-rec)" : undefined,
+                borderColor: saved ? "var(--color-rdv-rec)" : undefined,
+              }}
+            >
+              {saved ? <BookmarkCheck size={10} /> : <Bookmark size={10} />}{" "}
+              {saved ? "Salvo" : "Salvar"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
   );
+}
+
+function CrossCard({ cross }: { cross: BriefCrossPollination }) {
+  return (
+    <div
+      className="rdv-card"
+      style={{
+        padding: "14px 18px",
+        display: "flex",
+        gap: 14,
+        alignItems: "flex-start",
+      }}
+    >
+      <Lightbulb
+        size={18}
+        style={{ color: "var(--color-rdv-amber)", flexShrink: 0, marginTop: 2 }}
+      />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.2, marginBottom: 6 }}>
+          {cross.topic}
+        </h3>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {cross.sources.map((s, i) => (
+            <span
+              key={i}
+              className="rdv-mono"
+              style={{
+                fontSize: 9,
+                fontWeight: 700,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                padding: "3px 8px",
+                background: "var(--color-rdv-paper)",
+                border: "1px solid var(--color-rdv-line)",
+              }}
+            >
+              {s}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PlanPill({ plan }: { plan: "free" | "pro" }) {
+  const isPro = plan === "pro";
+  return (
+    <span
+      className="rdv-mono"
+      style={{
+        fontSize: 9,
+        fontWeight: 800,
+        letterSpacing: "0.16em",
+        textTransform: "uppercase",
+        padding: "4px 10px",
+        background: isPro ? "var(--color-rdv-rec)" : "transparent",
+        color: isPro ? "white" : "var(--color-rdv-muted)",
+        border: `1px solid ${isPro ? "var(--color-rdv-rec)" : "var(--color-rdv-line)"}`,
+      }}
+    >
+      {isPro ? "PRO" : "FREE"}
+    </span>
+  );
+}
+
+function topicRefId(topic: string): string {
+  return topic
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 80);
 }
 
 function NarrativeCard({ narrative }: { narrative: BriefNarrative }) {
@@ -324,15 +568,24 @@ function IdeaCard({ idea }: { idea: BriefCarouselIdea }) {
       <p style={{ fontSize: 12, color: "var(--color-rdv-muted)", lineHeight: 1.5 }}>
         {idea.angle}
       </p>
-      <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+      <div style={{ marginTop: 12, display: "flex", gap: 6, flexWrap: "wrap" }}>
         <a
-          href="https://viral.kaleidos.com.br"
+          href={`https://viral.kaleidos.com.br/?brief=${encodeURIComponent(idea.hook)}`}
           target="_blank"
           rel="noreferrer"
           className="rdv-btn rdv-btn-ghost"
           style={{ padding: "6px 10px", fontSize: 9 }}
         >
-          Recriar no SV <ArrowRight size={9} />
+          Carrossel SV <ArrowRight size={9} />
+        </a>
+        <a
+          href="https://reels-viral.vercel.app"
+          target="_blank"
+          rel="noreferrer"
+          className="rdv-btn rdv-btn-ghost"
+          style={{ padding: "6px 10px", fontSize: 9 }}
+        >
+          Reels RV <ArrowRight size={9} />
         </a>
       </div>
     </div>

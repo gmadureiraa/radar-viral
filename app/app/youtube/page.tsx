@@ -24,9 +24,12 @@ export default function YouTubePage() {
     setError(null);
     try {
       const jwt = await getJwtToken();
-      const res = await fetch(`/api/data/videos?days=${days}&limit=120`, {
-        headers: jwt ? { Authorization: `Bearer ${jwt}` } : undefined,
-      });
+      const res = await fetch(
+        `/api/data/videos?niche=${niche.id}&days=${days}&limit=120`,
+        {
+          headers: jwt ? { Authorization: `Bearer ${jwt}` } : undefined,
+        },
+      );
       if (!res.ok) {
         setError(`HTTP ${res.status}`);
         return;
@@ -43,7 +46,7 @@ export default function YouTubePage() {
   useEffect(() => {
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [days]);
+  }, [days, niche.id]);
 
   return (
     <main style={{ padding: "32px 28px 80px", maxWidth: 1280, margin: "0 auto" }}>
