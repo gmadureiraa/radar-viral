@@ -19,6 +19,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useNeonSession, getJwtToken } from "@/lib/auth-client";
+import { useActiveNiche } from "@/lib/niche-context";
 
 interface BriefHotTopic {
   topic: string;
@@ -49,12 +50,10 @@ interface DailyBrief {
 
 export default function DashboardPage() {
   const session = useNeonSession();
+  const { active: niche } = useActiveNiche();
   const [brief, setBrief] = useState<DailyBrief | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Niche fixo "marketing" no MVP — niche switcher virá depois.
-  const niche = "marketing";
 
   useEffect(() => {
     if (!session.data?.user) return;
@@ -63,7 +62,7 @@ export default function DashboardPage() {
       setLoading(true);
       try {
         const jwt = await getJwtToken();
-        const res = await fetch(`/api/brief?niche=${niche}`, {
+        const res = await fetch(`/api/brief?niche=${niche.id}`, {
           headers: jwt ? { Authorization: `Bearer ${jwt}` } : undefined,
         });
         if (!res.ok) {
@@ -81,7 +80,7 @@ export default function DashboardPage() {
     return () => {
       cancel = true;
     };
-  }, [session.data?.user?.id]);
+  }, [session.data?.user?.id, niche.id]);
 
   const userFirstName = useMemo(() => {
     const u = session.data?.user;

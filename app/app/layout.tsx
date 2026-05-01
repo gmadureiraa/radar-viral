@@ -22,6 +22,7 @@ import {
   isAuthConfigured,
 } from "@/lib/auth-client";
 import { isAdminEmail } from "@/lib/admin-emails";
+import { NicheProvider, useActiveNiche } from "@/lib/niche-context";
 
 interface NavItem {
   href: string;
@@ -48,6 +49,14 @@ const ADMIN_NAV_ITEM: NavItem = {
 };
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <NicheProvider>
+      <AppShell>{children}</AppShell>
+    </NicheProvider>
+  );
+}
+
+function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const session = useNeonSession();
@@ -287,6 +296,9 @@ function SidebarContent({
         )}
       </div>
 
+      {/* Niche switcher */}
+      <NicheSwitcher />
+
       <div
         style={{
           padding: "8px 4px 6px",
@@ -296,6 +308,7 @@ function SidebarContent({
           textTransform: "uppercase",
           color: "rgba(245,241,232,0.4)",
           fontWeight: 700,
+          marginTop: 14,
         }}
       >
         Workspace
@@ -418,6 +431,110 @@ function SidebarContent({
       >
         <LogOut size={11} /> Sair
       </button>
+    </div>
+  );
+}
+
+// ─── NicheSwitcher (dropdown na sidebar) ────────────────────────────
+
+function NicheSwitcher() {
+  const { active, setActive, niches } = useActiveNiche();
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ position: "relative", marginTop: 4 }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "10px 12px",
+          background: "rgba(245,241,232,0.05)",
+          border: "1px solid rgba(245,241,232,0.18)",
+          color: "var(--color-rdv-paper)",
+          cursor: "pointer",
+        }}
+      >
+        <span
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            background: active.color,
+            boxShadow: `0 0 6px ${active.color}`,
+            flexShrink: 0,
+          }}
+        />
+        <span style={{ flex: 1, textAlign: "left", fontSize: 12, fontWeight: 700 }}>
+          {active.emoji} {active.label}
+        </span>
+        <span
+          className="rdv-mono"
+          style={{
+            fontSize: 9,
+            letterSpacing: "0.16em",
+            color: "rgba(245,241,232,0.5)",
+            transform: open ? "rotate(180deg)" : "none",
+            transition: "transform 0.15s",
+          }}
+        >
+          ▾
+        </span>
+      </button>
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            right: 0,
+            background: "var(--color-rdv-coal)",
+            border: "1px solid rgba(245,241,232,0.18)",
+            zIndex: 10,
+            boxShadow: "4px 4px 0 0 rgba(255, 61, 46, 0.4)",
+          }}
+        >
+          {niches.map((n) => (
+            <button
+              key={n.id}
+              type="button"
+              onClick={() => {
+                setActive(n.id);
+                setOpen(false);
+              }}
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "10px 12px",
+                background: n.id === active.id ? "rgba(255, 61, 46, 0.15)" : "transparent",
+                border: "none",
+                color: "var(--color-rdv-paper)",
+                cursor: "pointer",
+                textAlign: "left",
+                fontSize: 11,
+                fontWeight: n.id === active.id ? 700 : 500,
+              }}
+            >
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background: n.color,
+                  flexShrink: 0,
+                }}
+              />
+              <span>
+                {n.emoji} {n.label}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
