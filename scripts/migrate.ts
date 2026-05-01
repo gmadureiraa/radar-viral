@@ -1,0 +1,111 @@
+/**
+ * Migration runner — Radar Viral v2.
+ *
+ * Cria tabelas próprias da v2 sem mexer nas tabelas v1 (que continuam
+ * populando o DB compartilhado).
+ *
+ * Idempotente: CREATE TABLE IF NOT EXISTS.
+ *
+ * Rodar: `bun scripts/migrate.ts`
+ */
+
+import { neon } from "@neondatabase/serverless";
+
+const url = process.env.DATABASE_URL;
+if (!url) {
+  console.error("DATABASE_URL ausente — cheque .env.local");
+  process.exit(1);
+}
+
+const sql = neon(url);
+
+async function main() {
+  console.log("[migrate] starting Radar v2 migrations…");
+
+  // ────────────────────────────────────────────────────────────────────
+  // user_subscriptions_radar (paywall)
+  // ────────────────────────────────────────────────────────────────────
+  // Separada da `user_subscriptions` (que é do RV) pra user poder ter
+  // assinatura ativa em Radar + RV simultaneamente.
+  await sql.query(`
+    CREATE TABLE IF NOT EXISTS user_subscriptions_radar (
+      user_id TEXT PRIMARY KEY,
+      plan TEXT NOT NULL DEFAULT 'free',
+      status TEXT NOT NULL DEFAULT 'active',
+      stripe_customer_id TEXT,
+      stripe_subscription_id TEXT UNIQUE,
+      stripe_price_id TEXT,
+      current_period_start TIMESTAMPTZ,
+      current_period_end TIMESTAMPTZ,
+      cancel_at_period_end BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  console.log("[migrate] ✓ user_subscriptions_radar");
+
+  await sql.query(`
+    CREATE INDEX IF NOT EXISTS user_subs_radar_stripe_customer_idx
+    ON user_subscriptions_radar (stripe_customer_id)
+  `);
+  console.log("[migrate] ✓ user_subs_radar_stripe_customer_idx");
+
+  // ────────────────────────────────────────────────────────────────────
+  // stripe_webhook_events_radar (idempotência)
+  // ────────────────────────────────────────────────────────────────────
+  // Stripe pode retransmitir eventos. Antes de processar, INSERT … ON
+  // CONFLICT garante que cada event.id só roda uma vez.
+  await sql.query(`
+    CREATE TABLE IF NOT EXISTS stripe_webhook_events_radar (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  console.log("[migrate] ✓ stripe_webhook_events_radar");
+
+  // ────────────────────────────────────────────────────────────────────
+  // tracked_sources — JÁ existe (criada pela v1). Garante que tem coluna
+  // user_id pra suportar tracked_sources individuais. v1 popula handles
+  // globais sem user_id; v2 vai popular per-user quando user assinar.
+  // ────────────────────────────────────────────────────────────────────
+  // Não criamos a tabela aqui — ela é canônica da v1. Só verificamos.
+  const cols = (await sql`
+    SELECT column_name FROM information_schema.columns
+     WHERE table_name = 'tracked_sources'
+  `) as Array<{ column_name: string }>;
+  const hasUserId = cols.some((c) => c.column_name === "user_id");
+  if (!hasUserId) {
+    await sql.query(`ALTER TABLE tracked_sources ADD COLUMN IF NOT EXISTS user_id TEXT`);
+    await sql.query(
+      `CREATE INDEX IF NOT EXISTS tracked_sources_user_idx ON tracked_sources (user_id)`,
+    );
+    console.log("[migrate] ✓ tracked_sources.user_id (added)");
+  } else {
+    console.log("[migrate] · tracked_sources.user_id já existe");
+  }
+
+  // ────────────────────────────────────────────────────────────────────
+  // Sanity
+  // ────────────────────────────────────────────────────────────────────
+  const tables = await sql.query(`
+    SELECT table_name FROM information_schema.tables
+     WHERE table_schema = 'public'
+       AND table_name LIKE '%radar%'
+     ORDER BY table_name
+  `);
+  console.log("\n[migrate] tabelas v2:");
+  for (const r of tables as Array<{ table_name: string }>) {
+    console.log("  •", r.table_name);
+  }
+}
+
+main()
+  .then(() => {
+    console.log("\n[migrate] done.");
+    process.exit(0);
+  })
+  .catch((err) => {
+    console.error("[migrate] failed:", err);
+    process.exit(1);
+  });

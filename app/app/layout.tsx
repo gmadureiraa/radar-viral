@@ -15,6 +15,7 @@ import {
   LogOut,
   Menu,
   X,
+  CreditCard,
 } from "lucide-react";
 import {
   useNeonSession,
@@ -38,6 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/app/news", label: "Notícias", icon: Newspaper },
   { href: "/app/newsletters", label: "Newsletters", icon: Mail },
   { href: "/app/saved", label: "Salvos", icon: BookmarkCheck },
+  { href: "/app/precos", label: "Planos", icon: CreditCard },
   { href: "/app/settings", label: "Configurações", icon: SettingsIcon },
 ];
 
