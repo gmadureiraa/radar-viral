@@ -7,7 +7,7 @@
  * sem hook React reagirem (ex: re-fetch de dados).
  */
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { DEFAULT_NICHE, NICHES, getNiche, type Niche } from "./niches";
 
 const STORAGE_KEY = "rdv_active_niche";
@@ -21,20 +21,19 @@ interface NicheContextValue {
 const NicheContext = createContext<NicheContextValue | null>(null);
 
 export function NicheProvider({ children }: { children: React.ReactNode }) {
-  const [activeId, setActiveId] = useState<string>(DEFAULT_NICHE.id);
-
-  // Hidrata do localStorage no mount
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+  // Lazy initializer: ler localStorage durante mount evita o flash do nicho
+  // padrão antes do useEffect rodar. Como o layout é "use client", a primeira
+  // render já é client-side e podemos acessar window com guarda.
+  const [activeId, setActiveId] = useState<string>(() => {
+    if (typeof window === "undefined") return DEFAULT_NICHE.id;
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored && getNiche(stored)) {
-        setActiveId(stored);
-      }
+      if (stored && getNiche(stored)) return stored;
     } catch {
       /* localStorage bloqueado */
     }
-  }, []);
+    return DEFAULT_NICHE.id;
+  });
 
   const setActive = (id: string) => {
     if (!getNiche(id)) return;
