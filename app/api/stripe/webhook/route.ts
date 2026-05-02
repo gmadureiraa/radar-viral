@@ -145,6 +145,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   // tracked_sources e popula DB.
   if (planId === "pro") {
     await activateUserSources(userId);
+    await enableProFeatures(userId);
   }
 }
 
@@ -185,6 +186,13 @@ async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
          SET active = FALSE
        WHERE user_id = ${userId}
     `;
+    // Desliga ai_enabled — cron v1 para de gerar brief individual
+    await sql`
+      UPDATE user_profiles
+         SET metadata = COALESCE(metadata, '{}'::jsonb)
+                      || jsonb_build_object('ai_enabled', 'false')
+       WHERE auth_user_id = ${userId}
+    `.catch((err) => console.warn("[webhook] disable ai_enabled failed:", err));
   }
   console.log(`[webhook] sub cancelada ${sub.id} → user volta pra free`);
 }
@@ -241,5 +249,61 @@ async function activateUserSources(userId: string): Promise<void> {
   console.log(
     `[webhook] activated sources user=${userId} niche=${nicheSlug} ig=${igHandles.length} yt=${ytChannels.length}`,
   );
+}
+
+/**
+ * Marca user_profiles.metadata.ai_enabled='true' (cron `/api/cron/brief` da v1
+ * lê esse flag e gera daily_briefs personalizado por user). Garante também que
+ * existe row em user_niches pra esse user (caso nunca tenha entrado em
+ * configurações da v1).
+ *
+ * Idempotente: ON CONFLICT DO NOTHING / DO UPDATE.
+ */
+async function enableProFeatures(userId: string): Promise<void> {
+  const sql = getSql();
+
+  // user_profiles: cria se não existir, marca ai_enabled
+  try {
+    await sql`
+      INSERT INTO user_profiles (auth_user_id, status, role, metadata, requested_at)
+      VALUES (
+        ${userId},
+        'approved',
+        'user',
+        jsonb_build_object('ai_enabled', 'true', 'plan_source', 'radar_pro'),
+        NOW()
+      )
+      ON CONFLICT (auth_user_id) DO UPDATE SET
+        status = CASE WHEN user_profiles.status = 'pending' THEN 'approved' ELSE user_profiles.status END,
+        metadata = COALESCE(user_profiles.metadata, '{}'::jsonb)
+                 || jsonb_build_object('ai_enabled', 'true', 'plan_source', 'radar_pro'),
+        approved_at = COALESCE(user_profiles.approved_at, NOW())
+    `;
+    console.log(`[webhook] user_profile.ai_enabled=true user=${userId}`);
+  } catch (err) {
+    console.warn("[enable-pro] user_profiles upsert failed:", err);
+  }
+
+  // user_niches: garante 1 nicho ativo (default marketing se vazio)
+  try {
+    const existing = (await sql`
+      SELECT id FROM user_niches WHERE user_id = ${userId} AND is_active = TRUE LIMIT 1
+    `) as Array<{ id: number }>;
+    if (existing.length === 0) {
+      await sql`
+        INSERT INTO user_niches (user_id, slug, label, emoji, color, description, keywords, is_active)
+        VALUES (
+          ${userId}, 'marketing', 'Marketing', '📈', '#FF3D2E',
+          'Growth, copywriting, social, SEO',
+          ARRAY['marketing','growth','seo','social']::text[],
+          TRUE
+        )
+        ON CONFLICT DO NOTHING
+      `;
+      console.log(`[webhook] user_niches default user=${userId} slug=marketing`);
+    }
+  } catch (err) {
+    console.warn("[enable-pro] user_niches upsert failed:", err);
+  }
 }
 
