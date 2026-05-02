@@ -48,19 +48,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
-  // Idempotência
+  // Idempotência: SELECT primeiro pra evitar race onde o handler falha
+  // mas o INSERT já marcou o evento como processado. Fluxo correto:
+  //   1. Já processado? → dedup:true, sai
+  //   2. Roda handler
+  //   3. Sucesso → INSERT (ON CONFLICT DO NOTHING cobre concorrência)
+  //   4. Falha → propaga 500 sem inserir, Stripe retenta
   try {
-    const inserted = (await getSql()`
-      INSERT INTO stripe_webhook_events_radar (id, type)
-      VALUES (${event.id}, ${event.type})
-      ON CONFLICT (id) DO NOTHING
-      RETURNING id
-    `) as Array<{ id: string }>;
-    if (!inserted || inserted.length === 0) {
+    const seen = (await getSql()`
+      SELECT 1 AS one FROM stripe_webhook_events_radar WHERE id = ${event.id} LIMIT 1
+    `) as Array<{ one: number }>;
+    if (seen && seen.length > 0) {
       return NextResponse.json({ received: true, dedup: true });
     }
   } catch (err) {
-    console.warn("[webhook] dedup miss:", err);
+    console.warn("[webhook] dedup check failed:", err);
   }
 
   try {
@@ -68,7 +70,10 @@ export async function POST(req: Request) {
       case "checkout.session.completed":
         await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
         break;
+      case "customer.subscription.created":
       case "customer.subscription.updated":
+        // created cobre a race onde Stripe dispara created antes do
+        // checkout.session.completed. Mesma rota de upsert.
         await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
         break;
       case "customer.subscription.deleted":
@@ -78,10 +83,26 @@ export async function POST(req: Request) {
         // Ignora outros eventos
         break;
     }
+
+    // Marca como processado SÓ depois do handler ter sucesso. ON CONFLICT
+    // DO NOTHING garante idempotência se duas instâncias do webhook rodarem
+    // o mesmo evento em paralelo (segunda finaliza igual, no-op).
+    try {
+      await getSql()`
+        INSERT INTO stripe_webhook_events_radar (id, type)
+        VALUES (${event.id}, ${event.type})
+        ON CONFLICT (id) DO NOTHING
+      `;
+    } catch (err) {
+      console.warn("[webhook] dedup mark failed:", err);
+    }
+
     return NextResponse.json({ received: true });
   } catch (err) {
     console.error("[webhook] handler error:", err, "event:", event.type);
     // 500 → Stripe retenta. Janela de 3 dias pra recuperar.
+    // Importante: NÃO marcamos dedup row aqui, pra que o retry do Stripe
+    // possa rodar o handler de novo.
     return NextResponse.json(
       { error: "handler failed", eventId: event.id },
       { status: 500 },
@@ -151,11 +172,39 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
 async function handleSubscriptionUpdated(sub: Stripe.Subscription) {
   if (sub.metadata?.app !== STRIPE_APP_TAG) return;
-  const userId = sub.metadata.userId;
-  const planId = sub.metadata.planId as PlanId | undefined;
-  if (!userId || !planId) return;
 
   const sql = getSql();
+
+  // Fallback: subs criadas direto via Stripe (ex: Customer Portal upgrade)
+  // podem chegar sem metadata.userId/planId. Recupera userId via
+  // stripe_customer_id se já tivermos a row no DB.
+  let userId = sub.metadata.userId;
+  const planId = sub.metadata.planId as PlanId | undefined;
+
+  if (!userId) {
+    const customerId = typeof sub.customer === "string" ? sub.customer : null;
+    if (customerId) {
+      const rows = (await sql`
+        SELECT user_id FROM user_subscriptions_radar
+         WHERE stripe_customer_id = ${customerId}
+         LIMIT 1
+      `) as Array<{ user_id: string }>;
+      if (rows.length > 0) {
+        userId = rows[0].user_id;
+        console.log(
+          `[webhook] sub.updated fallback userId via customer=${customerId} → user=${userId}`,
+        );
+      }
+    }
+  }
+
+  if (!userId || !planId) {
+    console.warn(
+      `[webhook] sub.updated bail: userId=${userId ?? "null"} planId=${planId ?? "null"} subId=${sub.id}`,
+    );
+    return;
+  }
+
   await sql`
     UPDATE user_subscriptions_radar
        SET plan = ${planId},
@@ -167,7 +216,7 @@ async function handleSubscriptionUpdated(sub: Stripe.Subscription) {
            updated_at = NOW()
      WHERE stripe_subscription_id = ${sub.id}
   `;
-  console.log(`[webhook] sub atualizada ${sub.id} status=${sub.status}`);
+  console.log(`[webhook] sub atualizada ${sub.id} status=${sub.status} user=${userId}`);
 }
 
 async function handleSubscriptionDeleted(sub: Stripe.Subscription) {

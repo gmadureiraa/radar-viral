@@ -19,6 +19,10 @@ import { requireAdmin } from "@/lib/admin";
 import { PLANS_RDV } from "@/lib/pricing";
 
 export const runtime = "nodejs";
+// Cache 60s — admin dashboard refresh frequente não justifica rodar 14
+// queries pesadas todo request. ISR de 1min é amplo o bastante pra ver
+// movimentação real e barato o bastante pra Neon.
+export const revalidate = 60;
 
 const dbUrl = process.env.DATABASE_URL;
 
