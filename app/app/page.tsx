@@ -21,6 +21,8 @@ import {
   Loader2,
   Lightbulb,
   ExternalLink,
+  Layers,
+  Film,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useNeonSession, getJwtToken } from "@/lib/auth-client";
@@ -431,7 +433,7 @@ function TopicCard({
           <span className="rdv-mono" style={{ fontSize: 10, color: "var(--color-rdv-muted)" }}>
             {topic.signal_count} sinal{topic.signal_count === 1 ? "" : "is"} · {intensity}
           </span>
-          <div style={{ display: "flex", gap: 6 }}>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             <Link
               href={`/app/news?q=${encodeURIComponent(topic.topic)}`}
               className="rdv-btn rdv-btn-ghost"
@@ -439,6 +441,24 @@ function TopicCard({
             >
               <ExternalLink size={10} /> Ver notícias
             </Link>
+            <a
+              href={svBridgeUrl(topic.topic, topic.source_summary)}
+              target="_blank"
+              rel="noreferrer"
+              className="rdv-btn rdv-btn-ghost"
+              style={{ padding: "5px 10px", fontSize: 9 }}
+            >
+              <Layers size={10} /> Carrossel SV
+            </a>
+            <a
+              href={rvBridgeUrl(topic.topic)}
+              target="_blank"
+              rel="noreferrer"
+              className="rdv-btn rdv-btn-ghost"
+              style={{ padding: "5px 10px", fontSize: 9 }}
+            >
+              <Film size={10} /> Reel RV
+            </a>
             <button
               type="button"
               onClick={onToggleSave}
@@ -498,6 +518,29 @@ function CrossCard({ cross }: { cross: BriefCrossPollination }) {
             </span>
           ))}
         </div>
+        <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <a
+            href={svBridgeUrl(
+              cross.topic,
+              `Cruzamento de fontes: ${(cross.sources ?? []).join(", ")}`,
+            )}
+            target="_blank"
+            rel="noreferrer"
+            className="rdv-btn rdv-btn-ghost"
+            style={{ padding: "5px 10px", fontSize: 9 }}
+          >
+            <Layers size={10} /> Conteúdo cruzado
+          </a>
+          <a
+            href={rvBridgeUrl(cross.topic)}
+            target="_blank"
+            rel="noreferrer"
+            className="rdv-btn rdv-btn-ghost"
+            style={{ padding: "5px 10px", fontSize: 9 }}
+          >
+            <Film size={10} /> Reel RV
+          </a>
+        </div>
       </div>
     </div>
   );
@@ -522,6 +565,33 @@ function PlanPill({ plan }: { plan: "free" | "pro" }) {
       {isPro ? "PRO" : "FREE"}
     </span>
   );
+}
+
+/**
+ * Helpers de bridge Radar → Sequência Viral / Reels Viral.
+ *
+ * SV (`/app/create/new?idea=...`) já consome `?idea=` e abre o editor com
+ * brief preenchido. Concatenamos title + context num único campo textual
+ * pra IA ter material rico de partida.
+ *
+ * RV (`https://reels-viral.vercel.app/?topic=...`) ainda NÃO consome
+ * `?topic=` na landing — fica como TODO pra implementar do lado RV.
+ * Por enquanto o param vai no link mesmo assim pra evitar mexer em 2 repos.
+ */
+function svBridgeUrl(title: string, context?: string): string {
+  const parts = [`Tema: ${title}`];
+  if (context && context.trim().length > 0) {
+    parts.push(`Contexto: ${context.trim()}`);
+  }
+  parts.push(
+    "Crie um carrossel de 6-8 slides explorando esse ângulo, em PT-BR, linguagem simples e direta.",
+  );
+  const idea = parts.join("\n");
+  return `https://viral.kaleidos.com.br/app/create/new?idea=${encodeURIComponent(idea)}`;
+}
+
+function rvBridgeUrl(topic: string): string {
+  return `https://reels-viral.vercel.app/?topic=${encodeURIComponent(topic)}`;
 }
 
 function topicRefId(topic: string): string {
@@ -558,6 +628,26 @@ function NarrativeCard({ narrative }: { narrative: BriefNarrative }) {
           ))}
         </ul>
       ) : null}
+      <div style={{ marginTop: 12, display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <a
+          href={svBridgeUrl(narrative.title, description)}
+          target="_blank"
+          rel="noreferrer"
+          className="rdv-btn rdv-btn-ghost"
+          style={{ padding: "5px 10px", fontSize: 9 }}
+        >
+          <Layers size={10} /> Carrossel desse ângulo
+        </a>
+        <a
+          href={rvBridgeUrl(narrative.title)}
+          target="_blank"
+          rel="noreferrer"
+          className="rdv-btn rdv-btn-ghost"
+          style={{ padding: "5px 10px", fontSize: 9 }}
+        >
+          <Film size={10} /> Reel RV
+        </a>
+      </div>
     </div>
   );
 }
@@ -576,22 +666,22 @@ function IdeaCard({ idea }: { idea: BriefCarouselIdea }) {
       </p>
       <div style={{ marginTop: 12, display: "flex", gap: 6, flexWrap: "wrap" }}>
         <a
-          href={`https://viral.kaleidos.com.br/?brief=${encodeURIComponent(idea.hook)}`}
+          href={svBridgeUrl(idea.hook, idea.angle)}
           target="_blank"
           rel="noreferrer"
           className="rdv-btn rdv-btn-ghost"
-          style={{ padding: "6px 10px", fontSize: 9 }}
+          style={{ padding: "5px 10px", fontSize: 9 }}
         >
-          Carrossel SV <ArrowRight size={9} />
+          <Layers size={10} /> Carrossel SV
         </a>
         <a
-          href="https://reels-viral.vercel.app"
+          href={rvBridgeUrl(idea.hook)}
           target="_blank"
           rel="noreferrer"
           className="rdv-btn rdv-btn-ghost"
-          style={{ padding: "6px 10px", fontSize: 9 }}
+          style={{ padding: "5px 10px", fontSize: 9 }}
         >
-          Reels RV <ArrowRight size={9} />
+          <Film size={10} /> Reel RV
         </a>
       </div>
     </div>
