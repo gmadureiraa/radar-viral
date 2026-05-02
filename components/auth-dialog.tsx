@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { getAuthClient } from "@/lib/auth-client";
+import { trackLead, trackCompleteRegistration } from "@/lib/meta-pixel";
 
 type Mode = "signin" | "signup";
 
@@ -24,6 +25,9 @@ export function AuthDialog({ onClose, onSuccess, title, subtitle }: AuthDialogPr
 
   async function handleGoogle() {
     setGoogleLoading(true);
+    // Google social signup é OAuth → o redirect interrompe execução. Disparamos
+    // Lead antes do redirect, no modo signup. Em signin nada dispara.
+    if (mode === "signup") trackLead("google_signup");
     try {
       const client = await getAuthClient();
       const callbackURL = typeof window !== "undefined" ? window.location.href : "/";
@@ -51,6 +55,13 @@ export function AuthDialog({ onClose, onSuccess, title, subtitle }: AuthDialogPr
           ? await client.signIn.email(args)
           : await client.signUp.email({ ...args, name: name.trim() || undefined });
       if (res.error) throw new Error(res.error.message || "Erro de auth");
+      // Conversion events Meta — só em signup. signin não dispara nada.
+      if (mode === "signup") {
+        trackLead("email_signup");
+        // Email signup do Better Auth não tem confirm flow ativo — user vira
+        // "verified" na hora. Disparar CompleteRegistration aqui mesmo.
+        trackCompleteRegistration("verified");
+      }
       onSuccess();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha");

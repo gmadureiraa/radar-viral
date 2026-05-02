@@ -10,6 +10,7 @@ import { Check, Loader2, Sparkles, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { PLANS_RDV, type PlanId } from "@/lib/pricing";
 import { useNeonSession, getJwtToken } from "@/lib/auth-client";
+import { trackSubscribe } from "@/lib/meta-pixel";
 
 interface SubscriptionInfo {
   plan: PlanId;
@@ -40,7 +41,15 @@ function PricingInner() {
   useEffect(() => {
     const payment = params.get("payment");
     if (payment === "success") {
+      // Conversion event Meta — Subscribe. Lê plan do search param (success_url
+      // do checkout grava ?plan=pro|max). Valor monetário em BRL inteiro.
+      const planParam = params.get("plan");
+      if (planParam === "pro" || planParam === "max") {
+        const cents = PLANS_RDV[planParam].priceMonthly;
+        trackSubscribe(cents / 100, planParam);
+      }
       toast.success("Pagamento confirmado! Pode levar alguns segundos pro plano aparecer.");
+      // Limpa params pra não duplicar evento em refresh.
       router.replace("/app/precos");
     } else if (payment === "cancelled") {
       toast.info("Checkout cancelado");
