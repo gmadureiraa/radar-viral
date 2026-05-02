@@ -343,7 +343,7 @@ function OverviewTab({ stats }: { stats: AdminStats }) {
         <KpiCard
           label="MRR"
           value={fmtBrl(stats.subscriptions.mrrBrl)}
-          hint={`${stats.subscriptions.activeCount} subs Pro`}
+          hint={`${stats.subscriptions.activeCount} subs ativas`}
           icon={<TrendingUp size={16} />}
           accent
         />
@@ -559,7 +559,7 @@ function SourcesTab({ stats }: { stats: AdminStats }) {
         <KpiCard
           label="PER-USER"
           value={fmtNum(totals.per_user)}
-          hint="Subs Pro com cron"
+          hint="Subs pagas com cron"
           icon={<Users size={16} />}
           accent
         />
@@ -704,7 +704,7 @@ function SubscriptionsTab({ stats }: { stats: AdminStats }) {
         />
       </div>
 
-      <Card title="Assinaturas Pro">
+      <Card title="Assinaturas pagas (Pro + Max)">
         <table style={tableStyle}>
           <thead>
             <tr>
