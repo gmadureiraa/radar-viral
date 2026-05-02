@@ -80,9 +80,15 @@ export default function SettingsPage() {
       if (res.ok) {
         const data = (await res.json()) as { sources: UserSourceRow[] };
         setMySources(data.sources ?? []);
+      } else if (res.status === 401) {
+        // Token expirou — silencioso, sessão vai redirecionar pra landing
+      } else {
+        // Outras falhas dão feedback no toast
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        toast.error(data.error ?? `Falha ao carregar fontes (${res.status})`);
       }
-    } catch {
-      /* silencioso */
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro de rede");
     } finally {
       setLoadingMine(false);
     }
