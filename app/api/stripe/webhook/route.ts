@@ -164,10 +164,22 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   // Ativa cron individual: copia fontes_curated do nicho do user pra
   // tracked_sources com user_id. Cron `/api/cron/refresh` da v1 lê
   // tracked_sources e popula DB.
-  if (planId === "pro") {
-    await activateUserSources(userId);
-    await enableProFeatures(userId);
+  if (planId === "pro" || planId === "max") {
+    await activateUserSources(userId, planId);
+    await enableProFeatures(userId, planId);
   }
+}
+
+/**
+ * Mapeia Stripe Price/Product ID → PlanId. Usado quando o user faz upgrade
+ * pelo Customer Portal e a sub chega sem metadata.planId.
+ */
+function mapStripePriceToPlan(priceId: string | null | undefined): PlanId | null {
+  if (!priceId) return null;
+  if (priceId === process.env.STRIPE_PRICE_ID_MAX_MONTHLY) return "max";
+  if (priceId === process.env.STRIPE_PRICE_ID_MAX_YEARLY) return "max";
+  if (priceId === process.env.STRIPE_PRICE_RDV_PRO_MONTH) return "pro";
+  return null;
 }
 
 async function handleSubscriptionUpdated(sub: Stripe.Subscription) {
@@ -179,7 +191,20 @@ async function handleSubscriptionUpdated(sub: Stripe.Subscription) {
   // podem chegar sem metadata.userId/planId. Recupera userId via
   // stripe_customer_id se já tivermos a row no DB.
   let userId = sub.metadata.userId;
-  const planId = sub.metadata.planId as PlanId | undefined;
+  let planId = sub.metadata.planId as PlanId | undefined;
+
+  // Fallback de planId: tenta mapear via Price ID quando metadata.planId
+  // não está presente (Customer Portal upgrade Pro→Max).
+  if (!planId) {
+    const priceId = sub.items.data[0]?.price?.id ?? null;
+    const mapped = mapStripePriceToPlan(priceId);
+    if (mapped) {
+      planId = mapped;
+      console.log(
+        `[webhook] sub.updated planId fallback via priceId=${priceId} → ${mapped}`,
+      );
+    }
+  }
 
   if (!userId) {
     const customerId = typeof sub.customer === "string" ? sub.customer : null;
@@ -248,11 +273,14 @@ async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
 
 /**
  * Lê o nicho default do user (fallback marketing) e popula tracked_sources
- * com fontes_curated do nicho. Respeita caps definidos em PLANS_RDV.pro.
+ * com fontes_curated do nicho. Respeita caps definidos em PLANS_RDV[plan].
  *
  * Idempotente — usa ON CONFLICT pra não duplicar handles já trackados.
  */
-async function activateUserSources(userId: string): Promise<void> {
+async function activateUserSources(
+  userId: string,
+  plan: "pro" | "max",
+): Promise<void> {
   const sql = getSql();
 
   // Busca niche preferido do user (se já tiver row em user_niches v1).
@@ -273,7 +301,7 @@ async function activateUserSources(userId: string): Promise<void> {
     return;
   }
 
-  const caps = PLANS_RDV.pro;
+  const caps = PLANS_RDV[plan];
   const igHandles = sources.igHandles.slice(0, caps.igHandlesCap);
   const ytChannels = sources.youtubeChannels.slice(0, caps.ytChannelsCap);
 
@@ -308,8 +336,13 @@ async function activateUserSources(userId: string): Promise<void> {
  *
  * Idempotente: ON CONFLICT DO NOTHING / DO UPDATE.
  */
-async function enableProFeatures(userId: string): Promise<void> {
+async function enableProFeatures(
+  userId: string,
+  plan: "pro" | "max",
+): Promise<void> {
   const sql = getSql();
+
+  const planSource = `radar_${plan}`;
 
   // user_profiles: cria se não existir, marca ai_enabled
   try {
@@ -319,16 +352,16 @@ async function enableProFeatures(userId: string): Promise<void> {
         ${userId},
         'approved',
         'user',
-        jsonb_build_object('ai_enabled', 'true', 'plan_source', 'radar_pro'),
+        jsonb_build_object('ai_enabled', 'true', 'plan_source', ${planSource}),
         NOW()
       )
       ON CONFLICT (auth_user_id) DO UPDATE SET
         status = CASE WHEN user_profiles.status = 'pending' THEN 'approved' ELSE user_profiles.status END,
         metadata = COALESCE(user_profiles.metadata, '{}'::jsonb)
-                 || jsonb_build_object('ai_enabled', 'true', 'plan_source', 'radar_pro'),
+                 || jsonb_build_object('ai_enabled', 'true', 'plan_source', ${planSource}),
         approved_at = COALESCE(user_profiles.approved_at, NOW())
     `;
-    console.log(`[webhook] user_profile.ai_enabled=true user=${userId}`);
+    console.log(`[webhook] user_profile.ai_enabled=true user=${userId} plan=${plan}`);
   } catch (err) {
     console.warn("[enable-pro] user_profiles upsert failed:", err);
   }

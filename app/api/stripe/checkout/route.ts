@@ -8,7 +8,8 @@
  *
  * Pricing inline via product_data — Gabriel não precisa criar product
  * manualmente no dashboard. Quando quiser, seta STRIPE_PRICE_RDV_PRO_MONTH
- * em env e passamos a usar Price IDs.
+ * (pro) ou STRIPE_PRICE_ID_MAX_MONTHLY (max) em env e passamos a usar
+ * Price IDs.
  */
 
 import { NextResponse } from "next/server";
@@ -42,9 +43,23 @@ export async function POST(req: Request) {
 
   const planId = body.planId as PlanId | undefined;
   if (!planId || planId === "free" || !PLANS_RDV[planId]) {
-    return NextResponse.json({ error: "planId deve ser 'pro'" }, { status: 400 });
+    return NextResponse.json(
+      { error: "planId deve ser 'pro' ou 'max'" },
+      { status: 400 },
+    );
   }
   const plan = PLANS_RDV[planId];
+
+  // Se já houver Price ID em env, prefere ele (passa a usar Stripe Products
+  // canônicos ao invés de inline price_data). Útil pra Max quando o user
+  // criar o Product no dashboard.
+  const priceIdEnvKey =
+    planId === "max"
+      ? "STRIPE_PRICE_ID_MAX_MONTHLY"
+      : planId === "pro"
+        ? "STRIPE_PRICE_RDV_PRO_MONTH"
+        : null;
+  const stripePriceId = priceIdEnvKey ? process.env[priceIdEnvKey] : undefined;
 
   // Reuse stripe_customer_id se já existe (consistência cross-checkouts).
   const dbUrl = process.env.DATABASE_URL;
@@ -86,20 +101,22 @@ export async function POST(req: Request) {
           planId,
         },
       },
-      line_items: [
-        {
-          price_data: {
-            currency: "brl",
-            product_data: {
-              name: `Radar Viral ${plan.name}`,
-              description: plan.features.slice(0, 4).join(" · "),
+      line_items: stripePriceId
+        ? [{ price: stripePriceId, quantity: 1 }]
+        : [
+            {
+              price_data: {
+                currency: "brl",
+                product_data: {
+                  name: `Radar Viral ${plan.name}`,
+                  description: plan.features.slice(0, 4).join(" · "),
+                },
+                unit_amount: plan.priceMonthly,
+                recurring: { interval: "month" },
+              },
+              quantity: 1,
             },
-            unit_amount: plan.priceMonthly,
-            recurring: { interval: "month" },
-          },
-          quantity: 1,
-        },
-      ],
+          ],
       allow_promotion_codes: true,
       success_url: `${origin}/app/precos?payment=success&plan=${planId}`,
       cancel_url: `${origin}/app/precos?payment=cancelled`,

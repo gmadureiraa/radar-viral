@@ -32,7 +32,7 @@ function PricingInner() {
   const session = useNeonSession();
   const router = useRouter();
   const params = useSearchParams();
-  const [loadingPlan, setLoadingPlan] = useState<"pro" | null>(null);
+  const [loadingPlan, setLoadingPlan] = useState<"pro" | "max" | null>(null);
   const [loadingPortal, setLoadingPortal] = useState(false);
   const [subInfo, setSubInfo] = useState<SubscriptionInfo | null>(null);
 
@@ -70,8 +70,8 @@ function PricingInner() {
     };
   }, [session.data?.user?.id]);
 
-  async function handleSubscribe() {
-    setLoadingPlan("pro");
+  async function handleSubscribe(planId: "pro" | "max") {
+    setLoadingPlan(planId);
     try {
       const jwt = await getJwtToken();
       const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -79,7 +79,7 @@ function PricingInner() {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers,
-        body: JSON.stringify({ planId: "pro" }),
+        body: JSON.stringify({ planId }),
       });
       const data = await res.json();
       if (!res.ok || !data.url) throw new Error(data.error ?? "Falha ao criar checkout");
@@ -121,36 +121,47 @@ function PricingInner() {
           marginBottom: 14,
         }}
       >
-        Radar global ou <em>radar individual</em>?
+        A maioria cria conteúdo <em>às cegas</em>.
       </h1>
       <p
         style={{
-          fontSize: 15,
+          fontSize: 16,
           color: "var(--color-rdv-muted)",
           textAlign: "center",
-          maxWidth: 580,
+          maxWidth: 640,
           margin: "0 auto 40px",
+          lineHeight: 1.55,
         }}
       >
-        No grátis você vê o nosso radar compartilhado. No Pro, ativamos cron individual:
-        suas fontes, seu DB, seu brief IA personalizado.
+        O Radar Viral analisa seu nicho e te dá os ganchos, formatos e temas
+        que estão viralizando agora mesmo. Free pra ver o radar global. Pro
+        pro radar individual. <strong>Max</strong> pra TikTok + agente IA
+        conversacional dedicado.
       </p>
 
       <div
+        id="planos"
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
           gap: 18,
         }}
       >
-        {(["free", "pro"] as PlanId[]).map((planId) => {
+        {(["free", "pro", "max"] as PlanId[]).map((planId) => {
           const isCurrent = subInfo?.plan === planId;
           const isFree = planId === "free";
-          const isLoading = loadingPlan === "pro" && planId === "pro";
+          const isMax = planId === "max";
+          const isLoading = loadingPlan === planId;
 
-          let ctaLabel = isFree ? "Plano atual" : "Assinar Pro";
+          let ctaLabel = isFree
+            ? "Plano atual"
+            : isMax
+              ? "Assinar Max"
+              : "Assinar Pro";
           let onClick: () => void = () => {
-            if (!isFree) void handleSubscribe();
+            if (planId === "pro" || planId === "max") {
+              void handleSubscribe(planId);
+            }
           };
           let disabled = isFree;
           let loading = isLoading;
@@ -165,7 +176,9 @@ function PricingInner() {
             disabled = true;
           }
 
-          const highlighted = !isFree && !isCurrent;
+          // Highlight = "Recomendado". Max em destaque (Recomendado),
+          // Pro fica neutro a menos que seja o atual.
+          const highlighted = isMax && !isCurrent;
 
           return (
             <PlanCard

@@ -14,28 +14,9 @@ import { NextResponse } from "next/server";
 import { requireUserId } from "@/lib/server-auth";
 import { getSql, isDbConfigured } from "@/lib/db";
 import { getUserSubscription } from "@/lib/subscriptions";
-import { PLANS_RDV } from "@/lib/pricing";
+import { getPlanCapForPlatform, isPaidPlan } from "@/lib/pricing";
 
 export const runtime = "nodejs";
-
-/**
- * Mapeia platform → cap field em PLANS_RDV.pro.
- * Se a platform não estiver no map, retorna null (libera, futureproof).
- */
-function getCapForPlatform(platform: string): number | null {
-  switch (platform) {
-    case "instagram":
-      return PLANS_RDV.pro.igHandlesCap;
-    case "youtube":
-      return PLANS_RDV.pro.ytChannelsCap;
-    case "news_rss":
-      return PLANS_RDV.pro.rssNewsCap;
-    case "newsletter_subscribe":
-      return PLANS_RDV.pro.newslettersCap;
-    default:
-      return null;
-  }
-}
 
 export interface UserSourceRow {
   id: number;
@@ -55,7 +36,13 @@ const VALID_PLATFORMS = new Set([
   "newsletter",
   "linkedin",
   "twitter",
+  "tiktok",
 ]);
+
+/** Platforms exclusivas de planos avançados (não-Pro). */
+const PLATFORM_MIN_PLAN: Record<string, "pro" | "max"> = {
+  tiktok: "max",
+};
 
 export async function GET(req: Request) {
   if (!isDbConfigured()) {
@@ -122,14 +109,27 @@ export async function POST(req: Request) {
   }
 
   // ── Plan + quota guard ───────────────────────────────────────────────
-  // Free não pode adicionar fontes (custo Apify). Pro tem caps por platform.
+  // Free não pode adicionar fontes (custo Apify). Pro/Max têm caps por platform.
   const sub = await getUserSubscription(auth.user.id);
-  if (sub.plan === "free") {
+  if (!isPaidPlan(sub.plan)) {
     return NextResponse.json(
       {
         error:
-          "Apenas no Pro. Faça upgrade pra adicionar fontes.",
+          "Apenas no Pro ou Max. Faça upgrade pra adicionar fontes.",
         upgradeRequired: true,
+      },
+      { status: 403 },
+    );
+  }
+
+  // Platforms exclusivas (ex: tiktok só no Max)
+  const minPlan = PLATFORM_MIN_PLAN[body.platform];
+  if (minPlan === "max" && sub.plan !== "max") {
+    return NextResponse.json(
+      {
+        error: `${body.platform} é exclusivo do plano Max. Faça upgrade pra desbloquear.`,
+        upgradeRequired: true,
+        requiresPlan: "max",
       },
       { status: 403 },
     );
@@ -137,8 +137,20 @@ export async function POST(req: Request) {
 
   const sql = getSql();
 
-  const cap = getCapForPlatform(body.platform);
-  if (cap !== null) {
+  const cap = getPlanCapForPlatform(sub.plan, body.platform);
+  if (cap !== null && cap === 0) {
+    return NextResponse.json(
+      {
+        error: `Plataforma ${body.platform} não disponível no seu plano (${sub.plan}).`,
+        capReached: true,
+        platform: body.platform,
+        cap: 0,
+        current: 0,
+      },
+      { status: 403 },
+    );
+  }
+  if (cap !== null && cap > 0) {
     const countRows = (await sql`
       SELECT COUNT(*)::int AS n
         FROM tracked_sources
@@ -147,9 +159,10 @@ export async function POST(req: Request) {
     `) as unknown as Array<{ n: number }>;
     const current = countRows[0]?.n ?? 0;
     if (current >= cap) {
+      const planLabel = sub.plan === "max" ? "Max" : "Pro";
       return NextResponse.json(
         {
-          error: `Limite do plano Pro atingido pra ${body.platform} (${current}/${cap}). Remova alguma fonte pra adicionar outra.`,
+          error: `Limite do plano ${planLabel} atingido pra ${body.platform} (${current}/${cap}). Remova alguma fonte pra adicionar outra.`,
           capReached: true,
           platform: body.platform,
           cap,
