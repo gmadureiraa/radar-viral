@@ -102,7 +102,7 @@ export default function DashboardPage() {
           const savedData = (await savedRes.json()) as {
             items: Array<{ ref_id: string }>;
           };
-          if (!cancel) setSavedTopics(new Set(savedData.items.map((i) => i.ref_id)));
+          if (!cancel) setSavedTopics(new Set((savedData.items ?? []).map((i) => i.ref_id)));
         }
       } catch (err) {
         if (!cancel) setError(err instanceof Error ? err.message : "Erro");
@@ -268,7 +268,7 @@ export default function DashboardPage() {
               <Empty msg="Sem sinais fortes hoje." />
             ) : (
               <div style={{ display: "grid", gap: 12 }}>
-                {brief.hot_topics.slice(0, 6).map((t, i) => (
+                {(brief.hot_topics ?? []).slice(0, 6).map((t, i) => (
                   <TopicCard
                     key={i}
                     topic={t}
@@ -289,7 +289,7 @@ export default function DashboardPage() {
               icon={<Lightbulb size={16} />}
             >
               <div style={{ display: "grid", gap: 12 }}>
-                {brief.cross_pollination.slice(0, 4).map((c, i) => (
+                {(brief.cross_pollination ?? []).slice(0, 4).map((c, i) => (
                   <CrossCard key={i} cross={c} />
                 ))}
               </div>
@@ -306,7 +306,7 @@ export default function DashboardPage() {
               <Empty msg="Nenhuma narrativa detectada." />
             ) : (
               <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
-                {brief.narratives.slice(0, 4).map((n, i) => (
+                {(brief.narratives ?? []).slice(0, 4).map((n, i) => (
                   <NarrativeCard key={i} narrative={n} />
                 ))}
               </div>
@@ -321,7 +321,7 @@ export default function DashboardPage() {
               icon={<Sparkles size={16} />}
             >
               <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
-                {brief.carousel_ideas.slice(0, 6).map((idea, i) => (
+                {(brief.carousel_ideas ?? []).slice(0, 6).map((idea, i) => (
                   <IdeaCard key={i} idea={idea} />
                 ))}
               </div>
@@ -480,7 +480,7 @@ function CrossCard({ cross }: { cross: BriefCrossPollination }) {
           {cross.topic}
         </h3>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {cross.sources.map((s, i) => (
+          {(cross.sources ?? []).map((s, i) => (
             <span
               key={i}
               className="rdv-mono"
@@ -535,20 +535,26 @@ function topicRefId(topic: string): string {
 }
 
 function NarrativeCard({ narrative }: { narrative: BriefNarrative }) {
+  // Schema do DB grava `explanation` + `sources`, mas a interface `BriefNarrative`
+  // anterior tipava como `why` + `signals`. Suporta ambos pra retrocompat.
+  const description =
+    (narrative as { explanation?: string }).explanation ?? narrative.why;
+  const items =
+    (narrative as { sources?: unknown[] }).sources ?? narrative.signals ?? [];
   return (
     <div className="rdv-card" style={{ padding: "16px 18px" }}>
       <h3 className="rdv-display" style={{ fontSize: 18, lineHeight: 1.15, marginBottom: 6 }}>
         {narrative.title}
       </h3>
-      {narrative.why && (
+      {description && (
         <p style={{ fontSize: 12.5, color: "var(--color-rdv-muted)", lineHeight: 1.45 }}>
-          {narrative.why}
+          {description}
         </p>
       )}
-      {narrative.signals?.length ? (
+      {Array.isArray(items) && items.length > 0 ? (
         <ul style={{ marginTop: 10, paddingLeft: 16, fontSize: 11.5, lineHeight: 1.5, color: "var(--color-rdv-muted)" }}>
-          {narrative.signals.slice(0, 3).map((s, i) => (
-            <li key={i}>{s}</li>
+          {items.slice(0, 3).map((s, i) => (
+            <li key={i}>{typeof s === "string" ? s : JSON.stringify(s)}</li>
           ))}
         </ul>
       ) : null}
