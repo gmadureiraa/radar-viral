@@ -45,6 +45,12 @@ export const metadata: Metadata = {
     description: "Brief IA + temas em alta. Diário.",
     creator: "@madureira",
   },
+  // Facebook domain verification — pareia com Pixel 1653489742563071 no
+  // Madureira BM (704738313932684). Atribui radar.kaleidos.com.br ao BM
+  // (asset id 891797797244412). Necessário pra Aggregated Event Measurement.
+  other: {
+    "facebook-domain-verification": "311lr45ybrvv5ubmx57u6yibpfkkho",
+  },
 };
 
 export const viewport: Viewport = {
