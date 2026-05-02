@@ -1001,6 +1001,7 @@ function PlanBadge({
 }) {
   const colorMap: Record<string, { bg: string; fg: string }> = {
     pro: { bg: "rgba(255, 61, 46, 0.12)", fg: "var(--color-rdv-rec)" },
+    max: { bg: "var(--color-rdv-rec)", fg: "white" },
     free: { bg: "transparent", fg: "var(--color-rdv-muted)" },
   };
   const effective = (status === "active" ? plan : "free") ?? "free";

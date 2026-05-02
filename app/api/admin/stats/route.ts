@@ -109,7 +109,7 @@ export async function GET(req: Request) {
   ] = (await Promise.all([
     sql`SELECT COUNT(DISTINCT user_id)::int AS n FROM saved_items WHERE user_id IS NOT NULL`,
     sql`SELECT COUNT(*)::int AS n FROM user_profiles`,
-    sql`SELECT COUNT(*)::int AS n FROM user_subscriptions_radar WHERE status='active' AND plan='pro'`,
+    sql`SELECT COUNT(*)::int AS n FROM user_subscriptions_radar WHERE status='active' AND plan IN ('pro','max')`,
     sql`SELECT COUNT(*)::int AS n FROM instagram_posts`,
     sql`SELECT COUNT(*)::int AS n FROM videos`,
     sql`SELECT COUNT(*)::int AS n FROM news_articles`,
@@ -137,7 +137,7 @@ export async function GET(req: Request) {
      WHERE status = 'active'
      GROUP BY plan
   `) as PlanCountRow[];
-  const planCounts: Record<string, number> = { free: 0, pro: 0 };
+  const planCounts: Record<string, number> = { free: 0, pro: 0, max: 0 };
   for (const r of planCountsRows) {
     planCounts[r.plan] = r.n;
   }
@@ -247,7 +247,7 @@ export async function GET(req: Request) {
            s.created_at::text
       FROM user_subscriptions_radar s
       LEFT JOIN user_profiles p ON p.auth_user_id = s.user_id
-     WHERE s.plan IN ('pro')
+     WHERE s.plan IN ('pro', 'max')
      ORDER BY s.created_at DESC
      LIMIT 50
   `) as SubscriptionRow[];
