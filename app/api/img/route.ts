@@ -29,7 +29,13 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "invalid url" }, { status: 400 });
   }
 
-  if (!ALLOWED_HOSTS.some((h) => parsed.hostname.endsWith(h))) {
+  // Match exato OU subdomínio com leading dot. `.endsWith(host)` puro deixa
+  // passar `evilcdninstagram.com` quando host é `cdninstagram.com`.
+  const hostname = parsed.hostname;
+  const allowed = ALLOWED_HOSTS.some(
+    (h) => hostname === h || hostname.endsWith("." + h),
+  );
+  if (!allowed) {
     return NextResponse.json({ error: "host not allowed" }, { status: 403 });
   }
 
