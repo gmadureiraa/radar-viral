@@ -182,14 +182,115 @@ function Landing() {
         />
       </section>
 
+      {/* MAX SPOTLIGHT */}
+      <section
+        style={{
+          maxWidth: 1100,
+          margin: "0 auto",
+          padding: "20px 28px 50px",
+        }}
+      >
+        <div
+          className="rdv-card"
+          style={{
+            padding: "36px 32px",
+            display: "grid",
+            gridTemplateColumns: "1.4fr 1fr",
+            gap: 28,
+            alignItems: "center",
+            borderColor: "var(--color-rdv-rec)",
+            boxShadow: "12px 12px 0 0 var(--color-rdv-rec)",
+            position: "relative",
+          }}
+        >
+          <span
+            className="rdv-mono"
+            style={{
+              position: "absolute",
+              top: -12,
+              left: 24,
+              background: "var(--color-rdv-rec)",
+              color: "white",
+              fontSize: 10,
+              fontWeight: 800,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              padding: "5px 10px",
+            }}
+          >
+            Novo · Plano Max
+          </span>
+          <div>
+            <div className="rdv-eyebrow" style={{ marginBottom: 8 }}>
+              <span className="rdv-rec-dot" /> AGENTE IA · TIKTOK · NICHO ESPECÍFICO
+            </div>
+            <h2
+              className="rdv-display"
+              style={{
+                fontSize: "clamp(26px, 3vw, 38px)",
+                lineHeight: 1.05,
+                letterSpacing: "-0.02em",
+                marginBottom: 14,
+              }}
+            >
+              A maioria cria conteúdo no TikTok <em>às cegas</em>.
+            </h2>
+            <p
+              style={{
+                fontSize: 15,
+                lineHeight: 1.55,
+                color: "var(--color-rdv-muted)",
+                marginBottom: 18,
+              }}
+            >
+              Este agente de IA analisa seu nicho e te dá os ganchos, formatos
+              e temas que estão viralizando agora mesmo. Guarde-o. 🔖
+            </p>
+            <a
+              href="/app/precos#planos"
+              className="rdv-btn rdv-btn-rec"
+              style={{ padding: "12px 18px", fontSize: 11 }}
+            >
+              <Sparkles size={12} /> Ver plano Max
+              <ArrowRight size={12} />
+            </a>
+          </div>
+          <div
+            style={{
+              padding: "20px 22px",
+              background: "var(--color-rdv-paper)",
+              border: "1.5px solid var(--color-rdv-ink)",
+            }}
+          >
+            <div className="rdv-mono" style={{ fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 14, color: "var(--color-rdv-muted)" }}>
+              Plano Max · R$ 149/mês
+            </div>
+            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 8 }}>
+              {[
+                "TikTok scraping incluído",
+                "2 nichos simultâneos",
+                "15 IG · 8 YT · 10 TikTok",
+                "Briefs IA ilimitados",
+                "Agente IA conversacional dedicado",
+              ].map((feat) => (
+                <li key={feat} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, lineHeight: 1.4 }}>
+                  <span style={{ color: "var(--color-rdv-rec)", fontWeight: 800 }}>+</span>
+                  {feat}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
+
       {/* PRICING TEASER */}
       <section
         style={{
           maxWidth: 1100,
           margin: "0 auto",
-          padding: "30px 28px 70px",
+          padding: "10px 28px 70px",
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
           gap: 18,
         }}
       >
@@ -233,28 +334,8 @@ function Landing() {
             display: "flex",
             flexDirection: "column",
             gap: 6,
-            borderColor: "var(--color-rdv-rec)",
-            boxShadow: "10px 10px 0 0 var(--color-rdv-rec)",
-            position: "relative",
           }}
         >
-          <span
-            className="rdv-mono"
-            style={{
-              position: "absolute",
-              top: -12,
-              right: 16,
-              background: "var(--color-rdv-rec)",
-              color: "white",
-              fontSize: 10,
-              fontWeight: 800,
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-              padding: "5px 10px",
-            }}
-          >
-            Recomendado
-          </span>
           <div className="rdv-eyebrow" style={{ marginBottom: 6 }}>
             PRO · INDIVIDUAL
           </div>
@@ -293,6 +374,75 @@ function Landing() {
           >
             Cron individual: suas fontes, seu DB, brief IA personalizado. Cap 6
             IG · 3 YT · 6 RSS · 5 newsletters.
+          </p>
+        </div>
+        <div
+          className="rdv-card"
+          style={{
+            padding: "26px 28px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+            borderColor: "var(--color-rdv-rec)",
+            boxShadow: "10px 10px 0 0 var(--color-rdv-rec)",
+            position: "relative",
+          }}
+        >
+          <span
+            className="rdv-mono"
+            style={{
+              position: "absolute",
+              top: -12,
+              right: 16,
+              background: "var(--color-rdv-rec)",
+              color: "white",
+              fontSize: 10,
+              fontWeight: 800,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              padding: "5px 10px",
+            }}
+          >
+            Recomendado
+          </span>
+          <div className="rdv-eyebrow" style={{ marginBottom: 6 }}>
+            MAX · TIKTOK + IA CHAT
+          </div>
+          <div
+            className="rdv-display"
+            style={{
+              fontSize: 36,
+              lineHeight: 1,
+              letterSpacing: "-0.02em",
+              marginBottom: 4,
+              display: "flex",
+              alignItems: "baseline",
+              gap: 8,
+            }}
+          >
+            R$ 149
+            <span style={{ fontSize: 13, color: "var(--color-rdv-muted)" }}>
+              /mês
+            </span>
+          </div>
+          <div
+            style={{
+              fontSize: 11,
+              color: "var(--color-rdv-muted)",
+              marginBottom: 8,
+            }}
+          >
+            de <s>R$ 249</s>
+          </div>
+          <p
+            style={{
+              fontSize: 13,
+              color: "var(--color-rdv-muted)",
+              lineHeight: 1.5,
+            }}
+          >
+            TikTok scraping. 2 nichos. Briefs ilimitados. Agente IA conversacional
+            dedicado por nicho.
           </p>
         </div>
       </section>
