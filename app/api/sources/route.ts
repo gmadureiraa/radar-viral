@@ -13,8 +13,29 @@
 import { NextResponse } from "next/server";
 import { requireUserId } from "@/lib/server-auth";
 import { getSql, isDbConfigured } from "@/lib/db";
+import { getUserSubscription } from "@/lib/subscriptions";
+import { PLANS_RDV } from "@/lib/pricing";
 
 export const runtime = "nodejs";
+
+/**
+ * Mapeia platform → cap field em PLANS_RDV.pro.
+ * Se a platform não estiver no map, retorna null (libera, futureproof).
+ */
+function getCapForPlatform(platform: string): number | null {
+  switch (platform) {
+    case "instagram":
+      return PLANS_RDV.pro.igHandlesCap;
+    case "youtube":
+      return PLANS_RDV.pro.ytChannelsCap;
+    case "news_rss":
+      return PLANS_RDV.pro.rssNewsCap;
+    case "newsletter_subscribe":
+      return PLANS_RDV.pro.newslettersCap;
+    default:
+      return null;
+  }
+}
 
 export interface UserSourceRow {
   id: number;
@@ -100,7 +121,45 @@ export async function POST(req: Request) {
     );
   }
 
+  // ── Plan + quota guard ───────────────────────────────────────────────
+  // Free não pode adicionar fontes (custo Apify). Pro tem caps por platform.
+  const sub = await getUserSubscription(auth.user.id);
+  if (sub.plan === "free") {
+    return NextResponse.json(
+      {
+        error:
+          "Apenas no Pro. Faça upgrade pra adicionar fontes.",
+        upgradeRequired: true,
+      },
+      { status: 403 },
+    );
+  }
+
   const sql = getSql();
+
+  const cap = getCapForPlatform(body.platform);
+  if (cap !== null) {
+    const countRows = (await sql`
+      SELECT COUNT(*)::int AS n
+        FROM tracked_sources
+       WHERE user_id = ${auth.user.id}
+         AND platform = ${body.platform}
+    `) as unknown as Array<{ n: number }>;
+    const current = countRows[0]?.n ?? 0;
+    if (current >= cap) {
+      return NextResponse.json(
+        {
+          error: `Limite do plano Pro atingido pra ${body.platform} (${current}/${cap}). Remova alguma fonte pra adicionar outra.`,
+          capReached: true,
+          platform: body.platform,
+          cap,
+          current,
+        },
+        { status: 403 },
+      );
+    }
+  }
+
   try {
     const rows = (await sql`
       INSERT INTO tracked_sources
