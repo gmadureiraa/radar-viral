@@ -27,6 +27,9 @@ import {
 import { toast } from "sonner";
 import { useNeonSession, getJwtToken } from "@/lib/auth-client";
 import { useActiveNiche } from "@/lib/niche-context";
+import { TopNewsSection } from "./_components/top-news-section";
+import { TopInstagramSection } from "./_components/top-instagram-section";
+import { TopYouTubeSection } from "./_components/top-youtube-section";
 
 interface BriefHotTopic {
   topic: string;
@@ -329,6 +332,40 @@ export default function DashboardPage() {
               </div>
             </Section>
           ) : null}
+        </>
+      )}
+
+      {/* ─── DIVISOR ENTRE BRIEF IA E CONTEÚDO BRUTO ─────────────────── */}
+      {session.data?.user && (
+        <div
+          style={{
+            margin: "44px 0 28px",
+            padding: "0 0 12px",
+            borderBottom: "1.5px solid var(--color-rdv-line)",
+          }}
+        >
+          <div className="rdv-eyebrow">
+            <span className="rdv-rec-dot" /> CONTEÚDO BRUTO · ÚLTIMAS 48H
+          </div>
+          <p
+            style={{
+              fontSize: 13,
+              color: "var(--color-rdv-muted)",
+              marginTop: 6,
+              maxWidth: 620,
+            }}
+          >
+            O que tá saindo agora nas suas fontes, sem a curadoria da IA. Pega
+            ideia direto da fonte.
+          </p>
+        </div>
+      )}
+
+      {session.data?.user && (
+        <>
+          <TopNewsSection nicheId={niche.id} isPaid={Boolean(sub?.isPaid)} />
+          <TopInstagramSection nicheId={niche.id} isPaid={Boolean(sub?.isPaid)} />
+          <TopYouTubeSection nicheId={niche.id} isPaid={Boolean(sub?.isPaid)} />
         </>
       )}
     </main>

@@ -39,9 +39,14 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const niche = url.searchParams.get("niche");
   const daysRaw = Number(url.searchParams.get("days") ?? 7);
+  const hoursParam = url.searchParams.get("hours");
+  const hours = hoursParam ? Math.min(720, Math.max(1, Number(hoursParam) || 0)) : null;
   const limitRaw = Number(url.searchParams.get("limit") ?? 60);
   const days = Math.min(60, Math.max(1, Number.isFinite(daysRaw) ? daysRaw : 7));
-  const limit = Math.min(120, Math.max(10, Number.isFinite(limitRaw) ? limitRaw : 60));
+  const limit = Math.min(120, Math.max(3, Number.isFinite(limitRaw) ? limitRaw : 60));
+  // hours, se informado, sobrescreve days (transforma em window curtinha tipo 24h/48h).
+  const intervalUnit = hours ? "hours" : "days";
+  const intervalQty = hours ?? days;
 
   // Resolve handles do nicho via catálogo curado.
   let handleFilter: string[] | null = null;
@@ -62,7 +67,7 @@ export async function GET(req: Request) {
                  category, title, thumbnail_url, published_at::text, link,
                  first_seen_at::text, last_seen_at::text
             FROM videos
-           WHERE published_at >= NOW() - (${days} || ' days')::interval
+           WHERE published_at >= NOW() - (${intervalQty} || ' ' || ${intervalUnit})::interval
              AND channel_handle = ANY(${handleFilter})
            ORDER BY published_at DESC NULLS LAST
            LIMIT ${limit}
@@ -72,7 +77,7 @@ export async function GET(req: Request) {
                  category, title, thumbnail_url, published_at::text, link,
                  first_seen_at::text, last_seen_at::text
             FROM videos
-           WHERE published_at >= NOW() - (${days} || ' days')::interval
+           WHERE published_at >= NOW() - (${intervalQty} || ' ' || ${intervalUnit})::interval
            ORDER BY published_at DESC NULLS LAST
            LIMIT ${limit}
         `) as unknown as VideoRow[]);

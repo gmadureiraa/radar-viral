@@ -33,7 +33,7 @@ export async function GET(req: Request) {
   const niche = url.searchParams.get("niche") ?? "marketing";
   const limitRaw = Number(url.searchParams.get("limit") ?? 60);
   const hoursRaw = Number(url.searchParams.get("hours") ?? 72);
-  const limit = Math.min(120, Math.max(10, Number.isFinite(limitRaw) ? limitRaw : 60));
+  const limit = Math.min(120, Math.max(3, Number.isFinite(limitRaw) ? limitRaw : 60));
   const hours = Math.min(720, Math.max(6, Number.isFinite(hoursRaw) ? hoursRaw : 72));
 
   const sql = getSql();
