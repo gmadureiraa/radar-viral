@@ -4,7 +4,8 @@
  * /app/precos — Free + Pro side by side. Plano atual destacado.
  */
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Check, Loader2, Sparkles, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { PLANS_RDV, type PlanId } from "@/lib/pricing";
@@ -20,10 +21,33 @@ interface SubscriptionInfo {
 }
 
 export default function PricingPage() {
+  return (
+    <Suspense fallback={null}>
+      <PricingInner />
+    </Suspense>
+  );
+}
+
+function PricingInner() {
   const session = useNeonSession();
+  const router = useRouter();
+  const params = useSearchParams();
   const [loadingPlan, setLoadingPlan] = useState<"pro" | null>(null);
   const [loadingPortal, setLoadingPortal] = useState(false);
   const [subInfo, setSubInfo] = useState<SubscriptionInfo | null>(null);
+
+  // Toast pós-checkout (Stripe redirect com ?payment=success|cancelled)
+  useEffect(() => {
+    const payment = params.get("payment");
+    if (payment === "success") {
+      toast.success("Pagamento confirmado! Pode levar alguns segundos pro plano aparecer.");
+      router.replace("/app/precos");
+    } else if (payment === "cancelled") {
+      toast.info("Checkout cancelado");
+      router.replace("/app/precos");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
 
   useEffect(() => {
     if (!session.data?.user) return;

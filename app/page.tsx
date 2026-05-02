@@ -182,6 +182,121 @@ function Landing() {
         />
       </section>
 
+      {/* PRICING TEASER */}
+      <section
+        style={{
+          maxWidth: 1100,
+          margin: "0 auto",
+          padding: "30px 28px 70px",
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gap: 18,
+        }}
+      >
+        <div
+          className="rdv-card"
+          style={{
+            padding: "26px 28px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+          }}
+        >
+          <div className="rdv-eyebrow" style={{ marginBottom: 6 }}>
+            FREE · GRÁTIS
+          </div>
+          <div
+            className="rdv-display"
+            style={{
+              fontSize: 36,
+              lineHeight: 1,
+              letterSpacing: "-0.02em",
+              marginBottom: 10,
+            }}
+          >
+            R$ 0
+          </div>
+          <p
+            style={{
+              fontSize: 13,
+              color: "var(--color-rdv-muted)",
+              lineHeight: 1.5,
+            }}
+          >
+            Radar global compartilhado. Brief diário, salvar e bridges pro SV/RV.
+          </p>
+        </div>
+        <div
+          className="rdv-card"
+          style={{
+            padding: "26px 28px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+            borderColor: "var(--color-rdv-rec)",
+            boxShadow: "10px 10px 0 0 var(--color-rdv-rec)",
+            position: "relative",
+          }}
+        >
+          <span
+            className="rdv-mono"
+            style={{
+              position: "absolute",
+              top: -12,
+              right: 16,
+              background: "var(--color-rdv-rec)",
+              color: "white",
+              fontSize: 10,
+              fontWeight: 800,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              padding: "5px 10px",
+            }}
+          >
+            Recomendado
+          </span>
+          <div className="rdv-eyebrow" style={{ marginBottom: 6 }}>
+            PRO · INDIVIDUAL
+          </div>
+          <div
+            className="rdv-display"
+            style={{
+              fontSize: 36,
+              lineHeight: 1,
+              letterSpacing: "-0.02em",
+              marginBottom: 4,
+              display: "flex",
+              alignItems: "baseline",
+              gap: 8,
+            }}
+          >
+            R$ 49,90
+            <span style={{ fontSize: 13, color: "var(--color-rdv-muted)" }}>
+              /mês
+            </span>
+          </div>
+          <div
+            style={{
+              fontSize: 11,
+              color: "var(--color-rdv-muted)",
+              marginBottom: 8,
+            }}
+          >
+            de <s>R$ 99,90</s>
+          </div>
+          <p
+            style={{
+              fontSize: 13,
+              color: "var(--color-rdv-muted)",
+              lineHeight: 1.5,
+            }}
+          >
+            Cron individual: suas fontes, seu DB, brief IA personalizado. Cap 6
+            IG · 3 YT · 6 RSS · 5 newsletters.
+          </p>
+        </div>
+      </section>
+
       {/* CTA FINAL */}
       <section
         style={{

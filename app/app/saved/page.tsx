@@ -8,9 +8,10 @@ import { useEffect, useMemo, useState } from "react";
 import { BookmarkCheck, RefreshCw, Loader2, ExternalLink, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { getJwtToken } from "@/lib/auth-client";
+import { imgProxy } from "@/lib/img-proxy";
 import type { SavedItemRow } from "@/app/api/data/saved/route";
 
-type Platform = "all" | "instagram" | "youtube" | "news" | "newsletter" | "idea";
+type Platform = "all" | "instagram" | "youtube" | "news" | "newsletter" | "topic";
 
 export default function SavedPage() {
   const [items, setItems] = useState<SavedItemRow[]>([]);
@@ -98,10 +99,16 @@ export default function SavedPage() {
       </div>
 
       <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
-        {(["all", "instagram", "youtube", "news", "newsletter", "idea"] as Platform[]).map((p) => {
+        {(["all", "topic", "instagram", "youtube", "news", "newsletter"] as Platform[]).map((p) => {
           const active = p === filter;
           const label =
-            p === "all" ? "Todos" : p === "newsletter" ? "Newsletters" : p === "idea" ? "Ideias" : p[0].toUpperCase() + p.slice(1);
+            p === "all"
+              ? "Todos"
+              : p === "newsletter"
+                ? "Newsletters"
+                : p === "topic"
+                  ? "Temas"
+                  : p[0].toUpperCase() + p.slice(1);
           const count = counts[p] ?? 0;
           return (
             <button
@@ -163,7 +170,7 @@ function SavedRow({ item, onRemove }: { item: SavedItemRow; onRemove: (i: SavedI
             flexShrink: 0,
             width: 64,
             height: 64,
-            background: `url(${item.thumbnail}) center/cover`,
+            background: `url(${imgProxy(item.thumbnail)}) center/cover`,
             border: "1px solid var(--color-rdv-line)",
           }}
         />
