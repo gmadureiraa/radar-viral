@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, Instrument_Serif, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
+import { MetaPixel } from "@/components/MetaPixel";
 import "./globals.css";
 
 const sans = Plus_Jakarta_Sans({
@@ -63,6 +64,7 @@ export default function RootLayout({
           color: "var(--color-rdv-ink)",
         }}
       >
+        <MetaPixel pixelId="1653489742563071" />
         {children}
         <Toaster
           position="bottom-right"
