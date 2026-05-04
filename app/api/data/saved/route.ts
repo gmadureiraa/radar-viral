@@ -32,24 +32,48 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const platform = url.searchParams.get("platform"); // optional filter
+
+  // Paginação: ?limit=N&offset=M. Default 50, max 100.
+  // Limite hard-coded de 200 (audit P0-3) ficava preso quando user
+  // acumulava bookmarks. Agora cliente controla janela + total + hasMore.
+  const limitRaw = Number(url.searchParams.get("limit") ?? 50);
+  const offsetRaw = Number(url.searchParams.get("offset") ?? 0);
+  const limit = Math.min(100, Math.max(1, Number.isFinite(limitRaw) ? limitRaw : 50));
+  const offset = Math.max(0, Number.isFinite(offsetRaw) ? offsetRaw : 0);
+
   const sql = getSql();
   try {
-    const rows = platform
-      ? ((await sql`
-          SELECT id, user_id, platform, ref_id, niche_slug, title, thumbnail,
-                 source_url, note, saved_at::text
-            FROM saved_items
-           WHERE user_id = ${auth.user.id} AND platform = ${platform}
-           ORDER BY saved_at DESC LIMIT 200
-        `) as unknown as SavedItemRow[])
-      : ((await sql`
-          SELECT id, user_id, platform, ref_id, niche_slug, title, thumbnail,
-                 source_url, note, saved_at::text
-            FROM saved_items
-           WHERE user_id = ${auth.user.id}
-           ORDER BY saved_at DESC LIMIT 200
-        `) as unknown as SavedItemRow[]);
-    return NextResponse.json({ items: rows });
+    const [rows, totalRows] = await Promise.all([
+      platform
+        ? ((await sql`
+            SELECT id, user_id, platform, ref_id, niche_slug, title, thumbnail,
+                   source_url, note, saved_at::text
+              FROM saved_items
+             WHERE user_id = ${auth.user.id} AND platform = ${platform}
+             ORDER BY saved_at DESC
+             LIMIT ${limit} OFFSET ${offset}
+          `) as unknown as SavedItemRow[])
+        : ((await sql`
+            SELECT id, user_id, platform, ref_id, niche_slug, title, thumbnail,
+                   source_url, note, saved_at::text
+              FROM saved_items
+             WHERE user_id = ${auth.user.id}
+             ORDER BY saved_at DESC
+             LIMIT ${limit} OFFSET ${offset}
+          `) as unknown as SavedItemRow[]),
+      platform
+        ? ((await sql`
+            SELECT COUNT(*)::int AS n FROM saved_items
+             WHERE user_id = ${auth.user.id} AND platform = ${platform}
+          `) as unknown as Array<{ n: number }>)
+        : ((await sql`
+            SELECT COUNT(*)::int AS n FROM saved_items
+             WHERE user_id = ${auth.user.id}
+          `) as unknown as Array<{ n: number }>),
+    ]);
+    const total = totalRows[0]?.n ?? 0;
+    const hasMore = offset + rows.length < total;
+    return NextResponse.json({ items: rows, total, hasMore, limit, offset });
   } catch (err) {
     console.error("[/api/data/saved GET] failed:", err);
     return NextResponse.json(
