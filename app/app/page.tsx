@@ -64,7 +64,7 @@ interface DailyBrief {
 }
 
 interface SubInfo {
-  plan: "free" | "pro";
+  plan: "free" | "pro" | "max";
   status: string;
   isPaid: boolean;
 }
@@ -583,8 +583,20 @@ function CrossCard({ cross }: { cross: BriefCrossPollination }) {
   );
 }
 
-function PlanPill({ plan }: { plan: "free" | "pro" }) {
-  const isPro = plan === "pro";
+function PlanPill({ plan }: { plan: "free" | "pro" | "max" }) {
+  const isPaid = plan === "pro" || plan === "max";
+  const isMax = plan === "max";
+  // Max usa lime/emerald brilhante (mais "premium" que o coral REC do Pro).
+  const bg = isMax
+    ? "#10B981"
+    : isPaid
+      ? "var(--color-rdv-rec)"
+      : "transparent";
+  const border = isMax
+    ? "#10B981"
+    : isPaid
+      ? "var(--color-rdv-rec)"
+      : "var(--color-rdv-line)";
   return (
     <span
       className="rdv-mono"
@@ -594,12 +606,12 @@ function PlanPill({ plan }: { plan: "free" | "pro" }) {
         letterSpacing: "0.16em",
         textTransform: "uppercase",
         padding: "4px 10px",
-        background: isPro ? "var(--color-rdv-rec)" : "transparent",
-        color: isPro ? "white" : "var(--color-rdv-muted)",
-        border: `1px solid ${isPro ? "var(--color-rdv-rec)" : "var(--color-rdv-line)"}`,
+        background: bg,
+        color: isPaid ? "white" : "var(--color-rdv-muted)",
+        border: `1px solid ${border}`,
       }}
     >
-      {isPro ? "PRO" : "FREE"}
+      {plan.toUpperCase()}
     </span>
   );
 }
