@@ -1,10 +1,18 @@
 /**
- * /api/cron/scrape-tiktok — STUB (Commit A do P0-1).
+ * /api/cron/refresh — STUB (Commit A do P0-1).
  *
- * Schedule: `0 11 * * *` (diário 11:00 UTC, depois do refresh). Plano
- * Max only. Implementação Apify completa vem em commit D.
+ * Schedule: `0 9 * * *` (diário 09:00 UTC). Implementação portada do
+ * v1 legacy `code/_archive/viral-hunter-v1-legacy/api/cron/refresh.ts`
+ * vem em commit separado (B).
  *
- * Auth + feature flag + dry-run idem refresh/brief.
+ * Auth: header `x-vercel-cron` OU `Authorization: Bearer $CRON_SECRET`
+ * OU `?token=$CRON_SECRET`.
+ *
+ * Feature flag: `RADAR_V2_CRON_ENABLED=true` exigido. Sem flag → skip
+ * silencioso. Evita que v2 duplique dados que v1 ainda popula no mesmo
+ * Neon DB.
+ *
+ * Dry-run: `?dry=true` retorna o que seria processado sem rodar nada.
  */
 
 import { checkCronAuth, isCronEnabled, getCronSql, logCronRun, jsonResponse } from "@/lib/cron-utils";
@@ -22,7 +30,7 @@ export async function GET(req: Request) {
     return jsonResponse({
       ok: true,
       skipped: "RADAR_V2_CRON_ENABLED não setado",
-      hint: "TikTok scraping é Max only e ainda não tem cron na v1. Setar env var pra ativar.",
+      hint: "v1 legacy ainda popula DB. Setar env var pra ativar v2 cron.",
       dry: auth.isDry,
     });
   }
@@ -34,18 +42,14 @@ export async function GET(req: Request) {
     return jsonResponse({
       ok: true,
       dry: true,
-      would_run: [
-        "list-max-users (plan='max')",
-        "list-tracked_sources (platform='tiktok' WHERE user.plan=max)",
-        "apify clockworks/tiktok-scraper",
-        "upsert tiktok_posts",
-      ],
+      would_run: ["refresh-news (RSS)", "refresh-ig (Apify)", "refresh-youtube (RSS)"],
       duration_ms: Date.now() - t0,
     });
   }
 
+  // Implementação real vem no commit B. Por enquanto loga skip.
   await logCronRun(sql, {
-    cronType: "scrape-tiktok",
+    cronType: "refresh",
     status: "skipped",
     errorMsg: "stub-not-implemented",
   });
@@ -53,7 +57,7 @@ export async function GET(req: Request) {
   return jsonResponse({
     ok: true,
     stub: true,
-    message: "Stub — implementação real em commit D.",
+    message: "Stub — implementação real em commit B.",
     duration_ms: Date.now() - t0,
   });
 }
