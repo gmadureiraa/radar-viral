@@ -86,6 +86,38 @@ async function main() {
   }
 
   // ────────────────────────────────────────────────────────────────────
+  // tiktok_posts (cron scrape-tiktok)
+  // ────────────────────────────────────────────────────────────────────
+  // Tabela criada pela v2. Idempotente: cron `/api/cron/scrape-tiktok`
+  // também roda CREATE TABLE IF NOT EXISTS no startup, mas rodar aqui
+  // garante schema antes do primeiro deploy do cron.
+  await sql.query(`
+    CREATE TABLE IF NOT EXISTS tiktok_posts (
+      post_id TEXT PRIMARY KEY,
+      account_handle TEXT NOT NULL,
+      niche TEXT,
+      niche_id INTEGER,
+      user_id TEXT,
+      caption TEXT,
+      video_url TEXT,
+      cover_url TEXT,
+      music_name TEXT,
+      plays BIGINT NOT NULL DEFAULT 0,
+      likes BIGINT NOT NULL DEFAULT 0,
+      shares BIGINT NOT NULL DEFAULT 0,
+      comments BIGINT NOT NULL DEFAULT 0,
+      hashtags JSONB,
+      posted_at TIMESTAMPTZ,
+      fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      raw JSONB
+    )
+  `);
+  await sql.query(`CREATE INDEX IF NOT EXISTS tiktok_posts_user_idx ON tiktok_posts (user_id)`);
+  await sql.query(`CREATE INDEX IF NOT EXISTS tiktok_posts_niche_idx ON tiktok_posts (niche)`);
+  await sql.query(`CREATE INDEX IF NOT EXISTS tiktok_posts_posted_idx ON tiktok_posts (posted_at DESC)`);
+  console.log("[migrate] ✓ tiktok_posts");
+
+  // ────────────────────────────────────────────────────────────────────
   // Sanity
   // ────────────────────────────────────────────────────────────────────
   const tables = await sql.query(`
