@@ -7,3 +7,8 @@ node_modules/
 .env.*.local
 .DS_Store
 .vercel
+.env.vercel*
+
+# Build artifacts
+*.tsbuildinfo
+tsconfig.tsbuildinfo
