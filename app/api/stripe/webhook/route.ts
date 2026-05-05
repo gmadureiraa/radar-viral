@@ -17,6 +17,7 @@ import { stripe, STRIPE_APP_TAG, type PlanId } from "@/lib/stripe";
 import { neon } from "@neondatabase/serverless";
 import { getCuratedSources } from "@/lib/sources-curated";
 import { PLANS_RDV } from "@/lib/pricing";
+import { applyReferralReward } from "@/lib/referrals";
 
 export const runtime = "nodejs";
 
@@ -167,6 +168,21 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   if (planId === "pro" || planId === "max") {
     await activateUserSources(userId, planId);
     await enableProFeatures(userId, planId);
+  }
+
+  // ── Referral reward ────────────────────────────────────────────────
+  // Se esse user (referido) veio via link de referral, aplica R$ 25 em
+  // crédito Stripe customer.balance pro referrer + dispara email + event.
+  // applyReferralReward é idempotente — re-run no mesmo referred_user_id
+  // após reward_applied=true retorna `already_applied` e não credita.
+  // Não bloqueia webhook se falhar — fluxo paralelo da conversão principal.
+  try {
+    await applyReferralReward({
+      referredUserId: userId,
+      stripeSessionId: session.id ?? null,
+    });
+  } catch (err) {
+    console.warn("[webhook] applyReferralReward falhou:", err);
   }
 }
 

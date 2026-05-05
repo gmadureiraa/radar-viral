@@ -34,14 +34,18 @@ export async function POST(req: Request) {
   const userId = auth.user.id;
   const userEmail = auth.user.email;
 
-  let body: { planId?: string };
+  let body: { planId?: string; referralCode?: string };
   try {
-    body = (await req.json()) as { planId?: string };
+    body = (await req.json()) as { planId?: string; referralCode?: string };
   } catch {
     return NextResponse.json({ error: "Body JSON inválido" }, { status: 400 });
   }
 
   const planId = body.planId as PlanId | undefined;
+  const referralCode =
+    typeof body.referralCode === "string" && body.referralCode.trim()
+      ? body.referralCode.trim().slice(0, 64)
+      : null;
   if (!planId || planId === "free" || !PLANS_RDV[planId]) {
     return NextResponse.json(
       { error: "planId deve ser 'pro' ou 'max'" },
@@ -93,12 +97,14 @@ export async function POST(req: Request) {
         app: STRIPE_APP_TAG,
         userId,
         planId,
+        ...(referralCode ? { referralCode } : {}),
       },
       subscription_data: {
         metadata: {
           app: STRIPE_APP_TAG,
           userId,
           planId,
+          ...(referralCode ? { referralCode } : {}),
         },
       },
       line_items: stripePriceId

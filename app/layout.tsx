@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, Instrument_Serif, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import { MetaPixel } from "@/components/MetaPixel";
+import { GoogleSignupSync } from "@/components/google-signup-sync";
+import { ReferralCapture } from "@/components/ReferralCapture";
 import "./globals.css";
 
 const sans = Plus_Jakarta_Sans({
@@ -71,6 +73,8 @@ export default function RootLayout({
         }}
       >
         <MetaPixel pixelId="1653489742563071" />
+        <ReferralCapture />
+        <GoogleSignupSync />
         {children}
         <Toaster
           position="bottom-right"

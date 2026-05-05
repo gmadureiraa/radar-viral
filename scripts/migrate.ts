@@ -118,12 +118,68 @@ async function main() {
   console.log("[migrate] ✓ tiktok_posts");
 
   // ────────────────────────────────────────────────────────────────────
+  // user_referral_codes — código único por user + saldo acumulado
+  // ────────────────────────────────────────────────────────────────────
+  // Não dá pra ALTER neon_auth.user (tabela managed). Mantemos código +
+  // acumulador em tabela própria. user_id casa com neon_auth.user.id.
+  await sql.query(`
+    CREATE TABLE IF NOT EXISTS user_referral_codes (
+      user_id TEXT PRIMARY KEY,
+      referral_code TEXT NOT NULL,
+      referral_credits_cents INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await sql.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS user_referral_codes_code_unique
+      ON user_referral_codes (lower(referral_code))
+  `);
+  console.log("[migrate] ✓ user_referral_codes");
+
+  // ────────────────────────────────────────────────────────────────────
+  // referrals_radar — histórico de cada indicação
+  // ────────────────────────────────────────────────────────────────────
+  // referrer (quem indicou) → referred (quem foi indicado).
+  // Status: pending → signup → converted (quando paga primeira fatura).
+  // reward_applied=true marca crédito Stripe customer.balance já aplicado.
+  await sql.query(`
+    CREATE TABLE IF NOT EXISTS referrals_radar (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      referrer_user_id TEXT NOT NULL,
+      referred_email TEXT NOT NULL,
+      referred_user_id TEXT,
+      referral_code TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'signup', 'converted', 'expired')),
+      signup_at TIMESTAMPTZ,
+      conversion_at TIMESTAMPTZ,
+      stripe_session_id TEXT,
+      reward_amount_cents INTEGER NOT NULL DEFAULT 0,
+      reward_applied BOOLEAN NOT NULL DEFAULT FALSE,
+      reward_applied_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await sql.query(`CREATE INDEX IF NOT EXISTS referrals_radar_referrer_idx ON referrals_radar (referrer_user_id)`);
+  await sql.query(`CREATE INDEX IF NOT EXISTS referrals_radar_code_idx ON referrals_radar (referral_code)`);
+  await sql.query(`CREATE INDEX IF NOT EXISTS referrals_radar_status_idx ON referrals_radar (status)`);
+  await sql.query(`CREATE INDEX IF NOT EXISTS referrals_radar_referred_user_idx ON referrals_radar (referred_user_id)`);
+  // Idempotência: 1 par (referrer, referred_user) único — UPSERT-friendly
+  await sql.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS referrals_radar_pair_unique
+      ON referrals_radar (referrer_user_id, referred_user_id)
+      WHERE referred_user_id IS NOT NULL
+  `);
+  console.log("[migrate] ✓ referrals_radar");
+
+  // ────────────────────────────────────────────────────────────────────
   // Sanity
   // ────────────────────────────────────────────────────────────────────
   const tables = await sql.query(`
     SELECT table_name FROM information_schema.tables
      WHERE table_schema = 'public'
-       AND table_name LIKE '%radar%'
+       AND (table_name LIKE '%radar%' OR table_name LIKE '%referral%')
      ORDER BY table_name
   `);
   console.log("\n[migrate] tabelas v2:");

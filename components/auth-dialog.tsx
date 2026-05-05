@@ -3,8 +3,37 @@
 import { useState } from "react";
 import { Loader2, X } from "lucide-react";
 import { toast } from "sonner";
-import { getAuthClient } from "@/lib/auth-client";
+import { getAuthClient, getJwtToken } from "@/lib/auth-client";
 import { trackLead, trackCompleteRegistration } from "@/lib/meta-pixel";
+import {
+  getStoredReferralCode,
+  trackReferral,
+  markReferralTracked,
+  wasReferralTracked,
+} from "@/lib/referral-client";
+
+const PENDING_GOOGLE_SIGNUP_KEY = "rdv:pending-google-signup";
+
+/**
+ * Após signup confirmado, lê `rdv_ref_code` do localStorage (se houver) e
+ * registra a indicação no backend. Idempotente — chamadas duplas viram
+ * upsert no servidor. Falha silenciosa: signup já aconteceu.
+ */
+async function maybeTrackReferralAfterSignup() {
+  if (wasReferralTracked()) return;
+  const code = getStoredReferralCode();
+  if (!code) return;
+  // Hidrata token (signup acabou de concluir — sessão já deve estar pronta).
+  for (let i = 0; i < 4; i++) {
+    const token = await getJwtToken();
+    if (token) {
+      const ok = await trackReferral(token, code);
+      if (ok) markReferralTracked();
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+}
 
 type Mode = "signin" | "signup";
 
@@ -27,7 +56,18 @@ export function AuthDialog({ onClose, onSuccess, title, subtitle }: AuthDialogPr
     setGoogleLoading(true);
     // Google social signup é OAuth → o redirect interrompe execução. Disparamos
     // Lead antes do redirect, no modo signup. Em signin nada dispara.
-    if (mode === "signup") trackLead("google_signup");
+    if (mode === "signup") {
+      trackLead("google_signup");
+      // Marca pra GoogleSignupSync rodar maybeTrackReferralAfterSignup
+      // depois que o callback OAuth retornar.
+      try {
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(PENDING_GOOGLE_SIGNUP_KEY, "1");
+        }
+      } catch {
+        /* ignore */
+      }
+    }
     try {
       const client = await getAuthClient();
       const callbackURL = typeof window !== "undefined" ? window.location.href : "/";
@@ -61,6 +101,9 @@ export function AuthDialog({ onClose, onSuccess, title, subtitle }: AuthDialogPr
         // Email signup do Better Auth não tem confirm flow ativo — user vira
         // "verified" na hora. Disparar CompleteRegistration aqui mesmo.
         trackCompleteRegistration("verified");
+        // Sequência de referral (se houver `rdv_ref_code` em localStorage).
+        // Sem await pra não atrasar UX — idempotente.
+        void maybeTrackReferralAfterSignup();
       }
       onSuccess();
     } catch (err) {
