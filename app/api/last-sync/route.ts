@@ -21,11 +21,13 @@ export async function GET() {
 
   const sql = neon(dbUrl);
   try {
+    // Schema real: news=fetched_at, ig=scraped_at, videos=last_seen_at,
+    // briefs=generated_at. NÃO existem `created_at` nessas tabelas.
     const [news, ig, videos, brief] = (await Promise.all([
-      sql`SELECT MAX(created_at)::text AS ts FROM news_articles`,
-      sql`SELECT MAX(created_at)::text AS ts FROM instagram_posts`,
-      sql`SELECT MAX(created_at)::text AS ts FROM videos`,
-      sql`SELECT MAX(brief_date)::text AS ts FROM daily_briefs`,
+      sql`SELECT MAX(fetched_at)::text AS ts FROM news_articles`,
+      sql`SELECT MAX(scraped_at)::text AS ts FROM instagram_posts`,
+      sql`SELECT MAX(last_seen_at)::text AS ts FROM videos`,
+      sql`SELECT MAX(generated_at)::text AS ts FROM daily_briefs`,
     ])) as unknown as [MaxRow[], MaxRow[], MaxRow[], MaxRow[]];
 
     const lastSync = {
