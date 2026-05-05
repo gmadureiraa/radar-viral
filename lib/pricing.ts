@@ -30,6 +30,19 @@
 
 export const PLAN_CURRENCY = "brl" as const;
 
+/**
+ * Decisão 2026-05-05: simplificar pra 2 planos (Free + Pro). Max foi
+ * consolidado dentro do Pro: caps maiores, briefs ilimitados, agente IA
+ * chat. Preço Pro saltou de R$ 49,90 pra R$ 99,90 (entre Pro antigo e
+ * Max antigo) reflete o aumento de features + custo de TikTok scraping.
+ *
+ * Max permanece no enum APENAS pra grandfathering: users que tem subscription
+ * ativa em `plan='max'` no DB continuam com features Max e preço Stripe
+ * antigo (R$ 149) até cancelarem. Webhook respeita. UI /app/precos não
+ * mostra Max — esses users acessam via portal pra cancelar/gerenciar.
+ *
+ * Novos users veem só Free e Pro.
+ */
 export const PLANS_RDV = {
   free: {
     name: "Free",
@@ -45,10 +58,12 @@ export const PLANS_RDV = {
     tiktokHandlesCap: 0,
     /** Briefs IA mensais (sentinel: -1 = ilimitado) */
     briefsMonthlyCap: 0,
-    /** Agente IA chat por nicho (Max only) */
+    /** Agente IA chat por nicho (Pro only) */
     aiChatAgent: false,
     /** Stripe Product ID (placeholder por enquanto, inline price_data via product_data) */
     stripeProductId: null as string | null,
+    /** Hidden da UI /app/precos? Free é sempre visível. */
+    hidden: false,
     features: [
       "Radar global compartilhado (Brief IA + Temas)",
       "Acesso à curadoria de fontes do teu nicho (read-only)",
@@ -58,35 +73,10 @@ export const PLANS_RDV = {
   },
   pro: {
     name: "Pro",
-    priceMonthly: 4990, // R$ 49,90 em centavos BRL
-    priceAnnual: 47904, // R$ 479,04 (-20% sobre 49.90×12 = 598.80)
-    priceAnchor: 9990, // de R$ 99,90
+    priceMonthly: 9990, // R$ 99,90 em centavos BRL (consolidado, era 49,90)
+    priceAnnual: 95904, // R$ 959,04/ano (-20% sobre 99,90×12 = 1198,80)
+    priceAnchor: 14900, // de R$ 149,00 (preço de Max anterior)
     /** Pro ativa cron individual: tracked_sources com user_id próprio. */
-    individualCron: true,
-    maxNiches: 1,
-    igHandlesCap: 6,
-    ytChannelsCap: 3,
-    rssNewsCap: 6,
-    newslettersCap: 5,
-    tiktokHandlesCap: 0,
-    briefsMonthlyCap: 30,
-    aiChatAgent: false,
-    stripeProductId: null as string | null,
-    features: [
-      "✓ Tudo do Free",
-      "Radar individual (não compartilhado): suas fontes, seu DB",
-      "Até 6 handles IG · 3 canais YouTube · 6 RSS · 5 newsletters",
-      "Cron diário scrapando pra você",
-      "Brief IA personalizado pelo seu nicho (read-only)",
-      "Suporte por email",
-    ],
-  },
-  max: {
-    name: "Max",
-    priceMonthly: 14900, // R$ 149,00
-    priceAnnual: 143040, // R$ 1.430,40 (-20% sobre 149×12 = 1788)
-    priceAnchor: 24900, // de R$ 249,00
-    /** Max também tem cron individual, com cap maior. */
     individualCron: true,
     maxNiches: 2,
     igHandlesCap: 15,
@@ -96,21 +86,52 @@ export const PLANS_RDV = {
     tiktokHandlesCap: 10,
     /** Briefs IA ilimitados (sentinel -1) */
     briefsMonthlyCap: -1,
+    /** Agente IA chat conversacional por nicho */
     aiChatAgent: true,
-    // Stripe BR Dashboard (criados via API em 2026-05-05):
+    stripeProductId: null as string | null,
+    hidden: false,
+    features: [
+      "✓ Tudo do Free",
+      "Radar individual: suas fontes, seu DB, cron diário próprio",
+      "Até 2 nichos simultâneos",
+      "15 handles IG · 8 canais YouTube · 10 TikTok · 15 RSS · 12 newsletters",
+      "TikTok scraping incluído",
+      "Brief IA ilimitado e personalizado pelo seu nicho",
+      "Agente IA conversacional dedicado por nicho",
+      "Suporte por email",
+    ],
+  },
+  /**
+   * DEPRECATED — não aparece em /app/precos. Mantido só pra users
+   * grandfathered com subscription ativa em plan='max' (preço antigo
+   * R$ 149/mês, prod_USgl567rf0sO0n). Quando cancelarem, viram free.
+   * Features são as mesmas do Pro novo (foram consolidadas) — então
+   * downgrade não dói nada operacionalmente.
+   */
+  max: {
+    name: "Max",
+    priceMonthly: 14900, // R$ 149,00 (preço grandfathered, NÃO usado em checkout novo)
+    priceAnnual: 143040,
+    priceAnchor: 24900,
+    individualCron: true,
+    maxNiches: 2,
+    igHandlesCap: 15,
+    ytChannelsCap: 8,
+    rssNewsCap: 15,
+    newslettersCap: 12,
+    tiktokHandlesCap: 10,
+    briefsMonthlyCap: -1,
+    aiChatAgent: true,
+    // Stripe BR (criado em 2026-05-05, mantido pra subs grandfathered):
     //   Product:  prod_USgl567rf0sO0n
-    //   Monthly:  price_1TTlNfGhC9Vkt84YiwiE37mQ (R$ 149,00)
-    //   Yearly:   price_1TTlNnGhC9Vkt84YvSvE20Gx (R$ 1.430,40 / -20%)
-    // Env vars STRIPE_PRICE_ID_MAX_MONTHLY/YEARLY setados no Vercel prod.
+    //   Monthly:  price_1TTlNfGhC9Vkt84YiwiE37mQ
+    //   Yearly:   price_1TTlNnGhC9Vkt84YvSvE20Gx
     stripeProductId: "prod_USgl567rf0sO0n" as string | null,
+    /** Esconde da UI /app/precos. Webhook continua aceitando pra grandfathering. */
+    hidden: true,
     features: [
       "✓ Tudo do Pro",
-      "2 nichos simultâneos (Pro tem 1)",
-      "Até 15 IG · 8 YouTube · 10 TikTok · 15 RSS · 12 newsletters",
-      "TikTok scraping (exclusivo Max)",
-      "Briefs IA ilimitados",
-      "Agente IA conversacional dedicado por nicho",
-      "Suporte prioritário",
+      "Plano legado — não disponível pra novas assinaturas",
     ],
   },
 } as const;

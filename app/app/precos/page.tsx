@@ -148,10 +148,11 @@ function PricingInner() {
           lineHeight: 1.55,
         }}
       >
-        O Radar Viral analisa seu nicho e te dá os ganchos, formatos e temas
-        que estão viralizando agora mesmo. Free pra ver o radar global. Pro
-        pro radar individual. <strong>Max</strong> pra TikTok + agente IA
-        conversacional dedicado.
+        O Radar Viral analisa seu nicho e te entrega os ganchos, formatos e
+        temas que estão viralizando agora mesmo. Comece de graça com o radar
+        global compartilhado, ou assine o Pro pra ter o seu radar individual
+        com cron próprio, TikTok scraping, briefs ilimitados e agente IA
+        conversacional por nicho.
       </p>
 
       <div
@@ -162,17 +163,24 @@ function PricingInner() {
           gap: 18,
         }}
       >
-        {(["free", "pro", "max"] as PlanId[]).map((planId) => {
+        {/* User com plan='max' grandfathered ainda enxerga o card Max pra poder
+            gerenciar/cancelar. Pra todo mundo, mostra só Free + Pro. */}
+        {(
+          ["free", "pro", "max"] as PlanId[]
+        ).filter((planId) => {
+          if (PLANS_RDV[planId].hidden) {
+            // Max só aparece se for o plano atual do user (legacy).
+            return subInfo?.plan === planId;
+          }
+          return true;
+        }).map((planId) => {
           const isCurrent = subInfo?.plan === planId;
           const isFree = planId === "free";
-          const isMax = planId === "max";
           const isLoading = loadingPlan === planId;
 
           let ctaLabel = isFree
             ? "Plano atual"
-            : isMax
-              ? "Assinar Max"
-              : "Assinar Pro";
+            : `Assinar ${PLANS_RDV[planId].name}`;
           let onClick: () => void = () => {
             if (planId === "pro" || planId === "max") {
               void handleSubscribe(planId);
@@ -191,9 +199,9 @@ function PricingInner() {
             disabled = true;
           }
 
-          // Highlight = "Recomendado". Max em destaque (Recomendado),
-          // Pro fica neutro a menos que seja o atual.
-          const highlighted = isMax && !isCurrent;
+          // Pro é o tier pago padrão — recebe destaque visual a menos que
+          // user já esteja nele.
+          const highlighted = planId === "pro" && !isCurrent;
 
           return (
             <PlanCard
