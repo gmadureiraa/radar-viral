@@ -11,7 +11,7 @@
  * Bookmark + link → YouTube.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -148,13 +148,7 @@ export function TopYouTubeSection({ nicheId, isPaid, limit = 3 }: Props) {
           ctaLabel="Adicionar canais →"
         />
       ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-            gap: 12,
-          }}
-        >
+        <YouTubeCarousel>
           {items.map((v) => (
             <YouTubeCard
               key={v.video_id}
@@ -163,10 +157,215 @@ export function TopYouTubeSection({ nicheId, isPaid, limit = 3 }: Props) {
               onToggleSave={() => void handleSave(v)}
             />
           ))}
-        </div>
+        </YouTubeCarousel>
       )}
     </section>
   );
+}
+
+/**
+ * Carrossel horizontal com drag/scroll. Cada slide ocupa ~320px e tem
+ * scroll-snap pra alinhar bonito ao soltar. Suporta:
+ *  - drag com mouse (botão esquerdo): captura coords, atualiza scrollLeft
+ *  - touch nativo do browser (sem JS extra)
+ *  - shadow nas bordas que indica "tem mais"
+ */
+function YouTubeCarousel({ children }: { children: React.ReactNode }) {
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const [showLeftFade, setShowLeftFade] = useState(false);
+  const [showRightFade, setShowRightFade] = useState(true);
+  const dragState = useRef<{ isDown: boolean; startX: number; scrollLeft: number; moved: boolean }>({
+    isDown: false,
+    startX: 0,
+    scrollLeft: 0,
+    moved: false,
+  });
+
+  const updateFades = useCallback(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    setShowLeftFade(el.scrollLeft > 8);
+    setShowRightFade(el.scrollLeft + el.clientWidth < el.scrollWidth - 8);
+  }, []);
+
+  useEffect(() => {
+    updateFades();
+    const el = trackRef.current;
+    if (!el) return;
+    const onScroll = () => updateFades();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [updateFades]);
+
+  function onMouseDown(e: React.MouseEvent) {
+    const el = trackRef.current;
+    if (!el) return;
+    dragState.current = {
+      isDown: true,
+      startX: e.pageX - el.offsetLeft,
+      scrollLeft: el.scrollLeft,
+      moved: false,
+    };
+    el.style.cursor = "grabbing";
+    el.style.scrollSnapType = "none";
+  }
+
+  function onMouseLeave() {
+    const el = trackRef.current;
+    if (!el) return;
+    dragState.current.isDown = false;
+    el.style.cursor = "grab";
+    el.style.scrollSnapType = "x mandatory";
+  }
+
+  function onMouseUp() {
+    const el = trackRef.current;
+    if (!el) return;
+    dragState.current.isDown = false;
+    el.style.cursor = "grab";
+    el.style.scrollSnapType = "x mandatory";
+  }
+
+  function onMouseMove(e: React.MouseEvent) {
+    if (!dragState.current.isDown) return;
+    const el = trackRef.current;
+    if (!el) return;
+    e.preventDefault();
+    const x = e.pageX - el.offsetLeft;
+    const walk = (x - dragState.current.startX) * 1.2;
+    if (Math.abs(walk) > 4) dragState.current.moved = true;
+    el.scrollLeft = dragState.current.scrollLeft - walk;
+  }
+
+  // Bloqueia clicks se houve drag (evita abrir vídeo ao soltar do drag).
+  function onClickCapture(e: React.MouseEvent) {
+    if (dragState.current.moved) {
+      e.preventDefault();
+      e.stopPropagation();
+      dragState.current.moved = false;
+    }
+  }
+
+  function scrollByPage(dir: 1 | -1) {
+    const el = trackRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * (el.clientWidth * 0.8), behavior: "smooth" });
+  }
+
+  return (
+    <div style={{ position: "relative" }}>
+      <div
+        ref={trackRef}
+        onMouseDown={onMouseDown}
+        onMouseLeave={onMouseLeave}
+        onMouseUp={onMouseUp}
+        onMouseMove={onMouseMove}
+        onClickCapture={onClickCapture}
+        style={{
+          display: "grid",
+          gridAutoFlow: "column",
+          gridAutoColumns: "minmax(280px, 320px)",
+          gap: 12,
+          overflowX: "auto",
+          overflowY: "hidden",
+          scrollSnapType: "x mandatory",
+          scrollBehavior: "smooth",
+          paddingBottom: 8,
+          cursor: "grab",
+          userSelect: "none",
+          // Esconde scrollbar (Webkit) — drag é a interação primária
+          scrollbarWidth: "thin",
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
+        {Array.isArray(children)
+          ? children.map((c, i) => (
+              <div key={i} style={{ scrollSnapAlign: "start" }}>
+                {c}
+              </div>
+            ))
+          : children}
+      </div>
+
+      {/* Setas de navegação (desktop) */}
+      {showLeftFade && (
+        <button
+          type="button"
+          onClick={() => scrollByPage(-1)}
+          aria-label="Anterior"
+          style={carouselArrowStyle("left")}
+        >
+          ‹
+        </button>
+      )}
+      {showRightFade && (
+        <button
+          type="button"
+          onClick={() => scrollByPage(1)}
+          aria-label="Próximo"
+          style={carouselArrowStyle("right")}
+        >
+          ›
+        </button>
+      )}
+
+      {/* Fade gradients indicando "tem mais" */}
+      {showLeftFade && (
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 8,
+            left: 0,
+            width: 36,
+            background:
+              "linear-gradient(to right, var(--color-rdv-paper) 0%, transparent 100%)",
+            pointerEvents: "none",
+          }}
+        />
+      )}
+      {showRightFade && (
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 8,
+            right: 0,
+            width: 36,
+            background:
+              "linear-gradient(to left, var(--color-rdv-paper) 0%, transparent 100%)",
+            pointerEvents: "none",
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function carouselArrowStyle(side: "left" | "right"): React.CSSProperties {
+  return {
+    position: "absolute",
+    top: "calc(50% - 4px)",
+    [side]: 4,
+    transform: "translateY(-50%)",
+    width: 36,
+    height: 36,
+    borderRadius: "50%",
+    background: "var(--color-rdv-ink)",
+    color: "white",
+    border: "1.5px solid var(--color-rdv-ink)",
+    cursor: "pointer",
+    fontSize: 22,
+    fontWeight: 700,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    lineHeight: 1,
+    zIndex: 2,
+    boxShadow: "2px 2px 0 0 var(--color-rdv-rec)",
+  };
 }
 
 function YouTubeCard({

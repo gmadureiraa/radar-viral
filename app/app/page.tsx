@@ -412,12 +412,12 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* ─── ROW 3: Top YouTube full-width (4-6 vídeos numa linha) ─── */}
+          {/* ─── ROW 3: Top YouTube full-width — carrossel horizontal ─── */}
           {session.data?.user && (
             <TopYouTubeSection
               nicheId={niche.id}
               isPaid={Boolean(sub?.isPaid)}
-              limit={6}
+              limit={10}
             />
           )}
 

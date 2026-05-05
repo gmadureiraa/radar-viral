@@ -33,16 +33,24 @@ interface NavItem {
   badge?: string;
 }
 
-const NAV_ITEMS: NavItem[] = [
+/**
+ * Sidebar nav split em 2 grupos (igual SV):
+ *   - PRIMARY (topo): features principais — Dashboard, IG, YT, News, Newsletters, Salvos
+ *   - SECONDARY (rodapé, antes do user card): Indique e ganhe, Ajustes, Planos
+ */
+const PRIMARY_NAV: NavItem[] = [
   { href: "/app", label: "Dashboard", icon: LayoutDashboard },
   { href: "/app/instagram", label: "Instagram", icon: Instagram },
   { href: "/app/youtube", label: "YouTube", icon: Youtube },
   { href: "/app/news", label: "Notícias", icon: Newspaper },
   { href: "/app/newsletters", label: "Newsletters", icon: Mail },
   { href: "/app/saved", label: "Salvos", icon: BookmarkCheck },
+];
+
+const SECONDARY_NAV: NavItem[] = [
   { href: "/app/settings/referrals", label: "Indique e ganhe", icon: Gift },
+  { href: "/app/settings", label: "Ajustes", icon: SettingsIcon },
   { href: "/app/precos", label: "Planos", icon: CreditCard },
-  { href: "/app/settings", label: "Configurações", icon: SettingsIcon },
 ];
 
 const ADMIN_NAV_ITEM: NavItem = {
@@ -95,7 +103,10 @@ function AppShell({ children }: { children: React.ReactNode }) {
   if (!session.data?.user) return null;
 
   const isAdmin = isAdminEmail(session.data.user.email);
-  const navItems = isAdmin ? [...NAV_ITEMS, ADMIN_NAV_ITEM] : NAV_ITEMS;
+  // Admin entra no PRIMARY (debug). SECONDARY (Indique/Ajustes/Planos) sempre
+  // no rodapé do sidebar — separado visualmente pra ficar igual ao SV.
+  const primaryItems = isAdmin ? [...PRIMARY_NAV, ADMIN_NAV_ITEM] : PRIMARY_NAV;
+  const secondaryItems = SECONDARY_NAV;
   const closeDrawer = () => setMobileOpen(false);
 
   return (
@@ -117,7 +128,8 @@ function AppShell({ children }: { children: React.ReactNode }) {
       >
         <SidebarContent
           pathname={pathname}
-          navItems={navItems}
+          primaryItems={primaryItems}
+          secondaryItems={secondaryItems}
           userEmail={session.data.user.email}
           userName={session.data.user.name}
           onNavigate={closeDrawer}
@@ -149,7 +161,8 @@ function AppShell({ children }: { children: React.ReactNode }) {
       >
         <SidebarContent
           pathname={pathname}
-          navItems={navItems}
+          primaryItems={primaryItems}
+          secondaryItems={secondaryItems}
           userEmail={session.data.user.email}
           userName={session.data.user.name}
           onNavigate={closeDrawer}
@@ -218,7 +231,8 @@ function AppShell({ children }: { children: React.ReactNode }) {
 
 function SidebarContent({
   pathname,
-  navItems,
+  primaryItems,
+  secondaryItems,
   userEmail,
   userName,
   onNavigate,
@@ -226,7 +240,8 @@ function SidebarContent({
   onClose,
 }: {
   pathname: string;
-  navItems: NavItem[];
+  primaryItems: NavItem[];
+  secondaryItems: NavItem[];
   userEmail: string;
   userName: string | null | undefined;
   onNavigate: () => void;
@@ -243,6 +258,58 @@ function SidebarContent({
       window.location.href = "/";
     }
   };
+
+  // Helper que renderiza um link de nav. Reusado pelo PRIMARY e SECONDARY
+  // pra manter consistência visual sem duplicar JSX.
+  function renderNavLink({ href, label, icon: Icon, badge }: NavItem) {
+    // /app/settings precisa ser exato pra não engolir /app/settings/referrals.
+    const active =
+      href === "/app"
+        ? pathname === "/app"
+        : href === "/app/settings"
+          ? pathname === "/app/settings"
+          : pathname.startsWith(href);
+    return (
+      <Link
+        key={href}
+        href={href}
+        onClick={onNavigate}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "9px 10px",
+          background: active ? "var(--color-rdv-rec)" : "transparent",
+          color: active ? "white" : "rgba(245,241,232,0.72)",
+          fontFamily: "var(--font-geist-mono)",
+          fontSize: 10.5,
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+          fontWeight: 600,
+          textDecoration: "none",
+          boxShadow: active ? "2px 2px 0 0 rgba(0,0,0,0.3)" : "none",
+          transition: "background 0.12s, color 0.12s",
+        }}
+      >
+        <Icon size={15} strokeWidth={1.8} style={{ flexShrink: 0 }} />
+        <span style={{ flex: 1, minWidth: 0 }}>{label}</span>
+        {badge && (
+          <span
+            style={{
+              fontSize: 8,
+              fontWeight: 800,
+              letterSpacing: "0.08em",
+              padding: "1px 6px",
+              background: active ? "rgba(0,0,0,0.18)" : "var(--color-rdv-rec)",
+              color: "white",
+            }}
+          >
+            {badge}
+          </span>
+        )}
+      </Link>
+    );
+  }
 
   return (
     <div
@@ -318,54 +385,35 @@ function SidebarContent({
         Workspace
       </div>
 
+      {/* Primary nav (workspace) */}
       <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        {navItems.map(({ href, label, icon: Icon, badge }) => {
-          const active =
-            href === "/app" ? pathname === "/app" : pathname.startsWith(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              onClick={onNavigate}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "9px 10px",
-                background: active ? "var(--color-rdv-rec)" : "transparent",
-                color: active ? "white" : "rgba(245,241,232,0.72)",
-                fontFamily: "var(--font-geist-mono)",
-                fontSize: 10.5,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                fontWeight: 600,
-                textDecoration: "none",
-                boxShadow: active ? "2px 2px 0 0 rgba(0,0,0,0.3)" : "none",
-                transition: "background 0.12s, color 0.12s",
-              }}
-            >
-              <Icon size={15} strokeWidth={1.8} style={{ flexShrink: 0 }} />
-              <span style={{ flex: 1, minWidth: 0 }}>{label}</span>
-              {badge && (
-                <span
-                  style={{
-                    fontSize: 8,
-                    fontWeight: 800,
-                    letterSpacing: "0.08em",
-                    padding: "1px 6px",
-                    background: active ? "rgba(0,0,0,0.18)" : "var(--color-rdv-rec)",
-                    color: "white",
-                  }}
-                >
-                  {badge}
-                </span>
-              )}
-            </Link>
-          );
-        })}
+        {primaryItems.map(renderNavLink)}
       </nav>
 
+      {/* Spacer flexível empurra SECONDARY pra base do sidebar */}
       <div style={{ flex: 1, minHeight: 24 }} />
+
+      {/* Secondary nav (rodapé): Indique e ganhe, Ajustes, Planos. Section
+          label + divider sutil pra ficar visualmente separado do PRIMARY. */}
+      <div
+        style={{
+          padding: "8px 4px 6px",
+          fontFamily: "var(--font-geist-mono)",
+          fontSize: 9,
+          letterSpacing: "0.22em",
+          textTransform: "uppercase",
+          color: "rgba(245,241,232,0.4)",
+          fontWeight: 700,
+          borderTop: "1px solid rgba(245,241,232,0.12)",
+          marginTop: 12,
+          paddingTop: 14,
+        }}
+      >
+        Conta
+      </div>
+      <nav style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 12 }}>
+        {secondaryItems.map(renderNavLink)}
+      </nav>
 
       <div
         style={{

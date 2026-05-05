@@ -32,6 +32,10 @@ export function TopNewsSection({ nicheId, isPaid }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<Set<string>>(new Set());
 
+  // Toggle: por padrão mostra só atualizações concretas (kind=news).
+  // User pode trocar pra "tudo" pra incluir análises/opinião.
+  const [showAll, setShowAll] = useState(false);
+
   useEffect(() => {
     let cancel = false;
     (async () => {
@@ -39,9 +43,10 @@ export function TopNewsSection({ nicheId, isPaid }: Props) {
       try {
         const jwt = await getJwtToken();
         const headers = jwt ? { Authorization: `Bearer ${jwt}` } : undefined;
+        const kindParam = showAll ? "" : "&kind=news";
         const [newsRes, savedRes] = await Promise.all([
           fetch(
-            `/api/data/news?niche=${encodeURIComponent(nicheId)}&hours=48&limit=8`,
+            `/api/data/news?niche=${encodeURIComponent(nicheId)}&hours=48&limit=10${kindParam}`,
             { headers },
           ),
           fetch("/api/data/saved?platform=news", { headers }),
@@ -65,7 +70,7 @@ export function TopNewsSection({ nicheId, isPaid }: Props) {
     return () => {
       cancel = true;
     };
-  }, [nicheId]);
+  }, [nicheId, showAll]);
 
   const handleSave = useCallback(
     async (article: NewsArticleRow) => {
@@ -114,16 +119,38 @@ export function TopNewsSection({ nicheId, isPaid }: Props) {
 
   return (
     <section style={{ marginBottom: 36 }}>
-      <SectionHeader
-        eyebrow="NOTÍCIAS EM ALTA"
-        title="Notícias em alta hoje"
-        subtitle={
-          isPaid
-            ? "Das fontes RSS que você acompanha"
-            : "Curadoria global · últimas 48h"
-        }
-        icon={<Newspaper size={16} />}
-      />
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+        <SectionHeader
+          eyebrow="NOTÍCIAS EM ALTA"
+          title={showAll ? "Notícias + análises" : "Atualizações de hoje"}
+          subtitle={
+            showAll
+              ? "Tudo que saiu nas suas fontes (incluindo opinião)"
+              : "Anúncios, lançamentos, números — sem opinião"
+          }
+          icon={<Newspaper size={16} />}
+        />
+        <div style={{ display: "flex", gap: 4 }}>
+          <button
+            type="button"
+            onClick={() => setShowAll(false)}
+            className={!showAll ? "rdv-btn rdv-btn-rec" : "rdv-btn rdv-btn-ghost"}
+            style={{ padding: "6px 12px", fontSize: 9.5, letterSpacing: "0.12em" }}
+            aria-pressed={!showAll}
+          >
+            SÓ NEWS
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowAll(true)}
+            className={showAll ? "rdv-btn rdv-btn-rec" : "rdv-btn rdv-btn-ghost"}
+            style={{ padding: "6px 12px", fontSize: 9.5, letterSpacing: "0.12em" }}
+            aria-pressed={showAll}
+          >
+            TUDO
+          </button>
+        </div>
+      </div>
       {loading && !items.length ? (
         <div style={{ padding: 32, display: "flex", justifyContent: "center" }}>
           <Loader2 size={20} className="rdv-spin" />
@@ -214,20 +241,41 @@ function NewsCard({
         </div>
       )}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <h3
-          style={{
-            fontSize: 14,
-            fontWeight: 700,
-            lineHeight: 1.25,
-            marginBottom: 4,
-            display: "-webkit-box",
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: "vertical",
-            overflow: "hidden",
-          }}
-        >
-          {article.title}
-        </h3>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
+          {article.kind === "analysis" && (
+            <span
+              className="rdv-mono"
+              style={{
+                fontSize: 8.5,
+                fontWeight: 800,
+                letterSpacing: "0.16em",
+                padding: "2px 6px",
+                background: "var(--color-rdv-paper)",
+                border: "1px solid var(--color-rdv-line)",
+                color: "var(--color-rdv-muted)",
+                marginTop: 2,
+              }}
+              title="Classificado como análise/opinião"
+            >
+              ANÁLISE
+            </span>
+          )}
+          <h3
+            style={{
+              fontSize: 14,
+              fontWeight: 700,
+              lineHeight: 1.25,
+              flex: 1,
+              minWidth: 0,
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}
+          >
+            {article.title}
+          </h3>
+        </div>
         <div
           className="rdv-mono"
           style={{
