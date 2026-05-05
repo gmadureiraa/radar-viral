@@ -86,6 +86,20 @@ async function main() {
   }
 
   // ────────────────────────────────────────────────────────────────────
+  // user_profiles — colunas de tracking pra crons de lifecycle Resend
+  // ────────────────────────────────────────────────────────────────────
+  // Idempotente. Cada cron de email (weekly/idle/power) marca timestamp
+  // pra evitar duplicar disparo. user_profiles é canônica da v1; só
+  // adicionamos colunas auxiliares.
+  await sql.query(`
+    ALTER TABLE user_profiles
+      ADD COLUMN IF NOT EXISTS last_idle_5d_email_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS last_power_user_email_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS last_weekly_digest_at TIMESTAMPTZ
+  `);
+  console.log("[migrate] ✓ user_profiles.last_*_email_at / last_weekly_digest_at");
+
+  // ────────────────────────────────────────────────────────────────────
   // tiktok_posts (cron scrape-tiktok)
   // ────────────────────────────────────────────────────────────────────
   // Tabela criada pela v2. Idempotente: cron `/api/cron/scrape-tiktok`

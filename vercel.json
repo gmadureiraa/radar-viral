@@ -3,11 +3,17 @@
   "crons": [
     { "path": "/api/cron/refresh", "schedule": "0 9 * * *" },
     { "path": "/api/cron/brief", "schedule": "0 10 * * *" },
-    { "path": "/api/cron/scrape-tiktok", "schedule": "0 11 * * *" }
+    { "path": "/api/cron/scrape-tiktok", "schedule": "0 11 * * *" },
+    { "path": "/api/cron/weekly-digest", "schedule": "0 10 * * 1" },
+    { "path": "/api/cron/idle-5d", "schedule": "0 13 * * *" },
+    { "path": "/api/cron/power-user", "schedule": "0 14 * * *" }
   ],
   "functions": {
     "app/api/cron/refresh/route.ts": { "maxDuration": 300 },
     "app/api/cron/brief/route.ts": { "maxDuration": 300 },
-    "app/api/cron/scrape-tiktok/route.ts": { "maxDuration": 300 }
+    "app/api/cron/scrape-tiktok/route.ts": { "maxDuration": 300 },
+    "app/api/cron/weekly-digest/route.ts": { "maxDuration": 300 },
+    "app/api/cron/idle-5d/route.ts": { "maxDuration": 120 },
+    "app/api/cron/power-user/route.ts": { "maxDuration": 120 }
   }
 }
