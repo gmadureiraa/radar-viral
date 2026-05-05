@@ -301,8 +301,9 @@ export default function DashboardPage() {
         Aqui o que <em>importa</em> hoje.
       </h1>
       <p style={{ fontSize: 14, color: "var(--color-rdv-muted)", marginBottom: 12 }}>
-        Brief diário cruzando notícias, Instagram e YouTube
-        {niche.label ? <> em <strong>{niche.label}</strong></> : null}.
+        Brief de hoje cruzando notícias, Instagram e YouTube
+        {niche.label ? <> de <strong>{niche.label}</strong></> : null}.
+        Atualizado todo dia 10h.
       </p>
       <NichePillBar />
 

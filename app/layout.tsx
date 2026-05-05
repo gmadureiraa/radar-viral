@@ -29,22 +29,23 @@ export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL ?? "https://radar.kaleidos.com.br",
   ),
-  title: "Radar Viral — Inteligência diária cross-platform",
+  title: "Radar Viral — Brief editorial diário, em 2 minutos",
   description:
-    "Inteligência diária de tendências cross-platform: Instagram, YouTube, notícias e newsletters. Brief IA com temas em alta.",
+    "IA cruza notícias, Instagram e YouTube do seu nicho e te entrega 3 narrativas, 5 temas em alta e 3 ideias prontas pra postar. Todo dia 10h.",
   authors: [{ name: "Kaleidos" }],
   creator: "Kaleidos",
   openGraph: {
-    title: "Radar Viral — Inteligência diária cross-platform",
-    description: "Brief IA + temas em alta cruzando IG, YouTube, news e newsletters.",
+    title: "Radar Viral — Brief editorial diário, em 2 minutos",
+    description:
+      "IA cruza notícias, IG e YouTube do seu nicho. Narrativas, temas em alta, ideias pra postar. Todo dia 10h.",
     type: "website",
     locale: "pt_BR",
     siteName: "Radar Viral",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Radar Viral — Inteligência diária cross-platform",
-    description: "Brief IA + temas em alta. Diário.",
+    title: "Radar Viral — Brief editorial diário",
+    description: "3 narrativas + 5 temas + 3 ideias. Cruzando 3 plataformas. Todo dia 10h.",
     creator: "@madureira",
   },
   // Facebook domain verification — pareia com Pixel 1653489742563071 no

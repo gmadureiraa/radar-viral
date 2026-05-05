@@ -95,7 +95,7 @@ function Landing() {
         }}
       >
         <div className="rdv-eyebrow" style={{ justifyContent: "center", marginBottom: 18 }}>
-          <span className="rdv-rec-dot" /> INTELIGÊNCIA DIÁRIA · CROSS-PLATFORM
+          <span className="rdv-rec-dot" /> BRIEF DIÁRIO · 10H DA MANHÃ
         </div>
         <h1
           className="rdv-display"
@@ -106,9 +106,9 @@ function Landing() {
             marginBottom: 24,
           }}
         >
-          O que está <em>bombando</em>.<br />
-          Por que está. <br />
-          E o que <span style={{ color: "var(--color-rdv-rec)" }}>fazer</span>.
+          O que <em>importa</em><br />
+          do seu nicho,<br />
+          em <span style={{ color: "var(--color-rdv-rec)" }}>2 minutos</span>.
         </h1>
         <p
           style={{
@@ -119,9 +119,9 @@ function Landing() {
             margin: "0 auto 36px",
           }}
         >
-          Brief diário gerado por IA cruzando Instagram, YouTube, notícias e
-          newsletters. Temas em alta, narrativas dominantes e ideias prontas
-          pra postar.
+          IA cruza notícias, Instagram e YouTube e te entrega{" "}
+          <strong>3 narrativas dominantes</strong>, <strong>5 temas em alta</strong>{" "}
+          e <strong>3 ideias prontas pra postar</strong>. Todo dia, 10h.
         </p>
 
         <button
@@ -145,7 +145,7 @@ function Landing() {
             marginTop: 16,
           }}
         >
-          ⚡ Brief diário · 4 fontes cruzadas · Sem cartão
+          ⚡ 3 plataformas cruzadas · Crypto · Marketing · IA · Sem cartão
         </p>
       </section>
 

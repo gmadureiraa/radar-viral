@@ -28,9 +28,9 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { useActiveNiche } from "@/lib/niche-context";
 import { getCuratedSources } from "@/lib/sources-curated";
-import { NICHES } from "@/lib/niches";
 import { useNeonSession, getJwtToken } from "@/lib/auth-client";
 import { SourceActionsMenu } from "@/components/source-actions-menu";
+import { NichePillBar } from "@/app/app/_components/niche-pill-bar";
 import type { UserSourceRow } from "@/app/api/sources/route";
 
 type Category = "ig" | "youtube" | "news" | "newsletter";
@@ -51,7 +51,7 @@ const PLATFORM_TO_CATEGORY: Record<string, Category> = {
 
 export default function SettingsPage() {
   const session = useNeonSession();
-  const { active, setActive } = useActiveNiche();
+  const { active } = useActiveNiche();
   const [tab, setTab] = useState<Category>("ig");
   const [mySources, setMySources] = useState<UserSourceRow[]>([]);
   const [loadingMine, setLoadingMine] = useState(false);
@@ -149,155 +149,70 @@ export default function SettingsPage() {
           fontSize: "clamp(32px, 4vw, 48px)",
           lineHeight: 1.05,
           letterSpacing: "-0.02em",
-          marginBottom: 24,
+          marginBottom: 6,
         }}
       >
-        Tuas <em>fontes</em>.
+        Suas <em>fontes</em>.
       </h1>
+      <p
+        style={{
+          fontSize: 14,
+          color: "var(--color-rdv-muted)",
+          marginBottom: 18,
+        }}
+      >
+        Escolha o nicho e veja quais fontes alimentam seu brief diário.
+      </p>
 
-      {/* Nicho ativo */}
-      <section style={{ marginBottom: 32 }}>
-        <div className="rdv-eyebrow" style={{ marginBottom: 10 }}>
-          NICHO ATIVO
-        </div>
-        <div
-          style={{
-            display: "grid",
-            gap: 10,
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          }}
-        >
-          {NICHES.map((n) => {
-            const isActive = n.id === active.id;
-            return (
-              <button
-                key={n.id}
-                type="button"
-                onClick={() => setActive(n.id)}
-                style={{
-                  padding: 16,
-                  background: isActive
-                    ? `${n.color}15`
-                    : "var(--color-rdv-cream)",
-                  border: `1.5px solid ${
-                    isActive ? n.color : "var(--color-rdv-ink)"
-                  }`,
-                  boxShadow: isActive
-                    ? `4px 4px 0 0 ${n.color}`
-                    : "3px 3px 0 0 var(--color-rdv-ink)",
-                  cursor: "pointer",
-                  textAlign: "left",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                }}
-              >
-                <span style={{ fontSize: 28 }}>{n.emoji}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}
-                  >
-                    {n.label}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "var(--color-rdv-muted)",
-                      lineHeight: 1.3,
-                    }}
-                  >
-                    {n.description}
-                  </div>
-                </div>
-                {isActive && (
-                  <span
-                    style={{
-                      flexShrink: 0,
-                      width: 22,
-                      height: 22,
-                      background: n.color,
-                      color: "white",
-                      borderRadius: "50%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Check size={12} strokeWidth={3} />
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </section>
+      {/* Niche switcher: pills compactas (consistente com dashboard) */}
+      <NichePillBar />
 
-      {/* Plano: free notice OU minhas fontes (Pro) */}
+      {/* Free notice — versão simplificada, sem termo técnico */}
       {!hasIndividualCron && (
         <section style={{ marginBottom: 28 }}>
           <div
             className="rdv-card"
             style={{
-              padding: "18px 22px",
+              padding: "16px 20px",
               display: "flex",
-              alignItems: "flex-start",
+              alignItems: "center",
               gap: 14,
               borderColor: "var(--color-rdv-amber)",
-              boxShadow: "5px 5px 0 0 var(--color-rdv-amber)",
+              boxShadow: "4px 4px 0 0 var(--color-rdv-amber)",
+              flexWrap: "wrap",
             }}
           >
             <Lock
-              size={20}
+              size={18}
               style={{
                 color: "var(--color-rdv-amber)",
                 flexShrink: 0,
-                marginTop: 2,
               }}
             />
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 220 }}>
               <div
-                style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}
+                style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 2 }}
               >
-                Você tá no plano <em>Free</em> · vendo o radar global
+                Plano Free · catálogo compartilhado
               </div>
               <p
                 style={{
-                  fontSize: 13,
+                  fontSize: 12.5,
                   color: "var(--color-rdv-muted)",
                   lineHeight: 1.5,
                 }}
               >
-                No grátis, você vê o radar populado pelo nosso scrape
-                compartilhado. Quando assinar o <strong>Pro</strong>, ativamos
-                o catálogo abaixo: as{" "}
-                <strong>
-                  {counts.ig +
-                    counts.youtube +
-                    counts.news +
-                    counts.newsletter}{" "}
-                  fontes
-                </strong>{" "}
-                do nicho <strong>{active.label}</strong> entram em{" "}
-                <code
-                  style={{
-                    fontFamily: "var(--font-geist-mono)",
-                    fontSize: 12,
-                    background: "var(--color-rdv-paper)",
-                    padding: "1px 5px",
-                  }}
-                >
-                  tracked_sources
-                </code>{" "}
-                e começam a alimentar teu DB individual.
+                Você vê o brief gerado a partir das fontes globais abaixo.
+                No Pro você customiza fontes próprias e tem cron individual.
               </p>
-              <Link
-                href="/app/precos"
-                className="rdv-btn rdv-btn-rec"
-                style={{ marginTop: 10, padding: "8px 14px", fontSize: 10 }}
-              >
-                <Sparkles size={11} /> Ver planos
-              </Link>
             </div>
+            <Link
+              href="/app/precos"
+              className="rdv-btn rdv-btn-rec"
+              style={{ padding: "8px 14px", fontSize: 10, whiteSpace: "nowrap" }}
+            >
+              <Sparkles size={11} /> Ver planos
+            </Link>
           </div>
         </section>
       )}
