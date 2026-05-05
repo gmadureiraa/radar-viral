@@ -182,7 +182,7 @@ function Landing() {
         />
       </section>
 
-      {/* MAX SPOTLIGHT */}
+      {/* PRO SPOTLIGHT */}
       <section
         style={{
           maxWidth: 1100,
@@ -218,7 +218,7 @@ function Landing() {
               padding: "5px 10px",
             }}
           >
-            Novo · Plano Max
+            Plano Pro
           </span>
           <div>
             <div className="rdv-eyebrow" style={{ marginBottom: 8 }}>
@@ -243,15 +243,16 @@ function Landing() {
                 marginBottom: 18,
               }}
             >
-              Este agente de IA analisa seu nicho e te dá os ganchos, formatos
-              e temas que estão viralizando agora mesmo. Guarde-o. 🔖
+              O agente de IA do Pro analisa seu nicho e te dá os ganchos, formatos
+              e temas que estão viralizando agora mesmo, com brief diário
+              personalizado e bookmarks integrados ao Sequência Viral.
             </p>
             <a
               href="/app/precos#planos"
               className="rdv-btn rdv-btn-rec"
               style={{ padding: "12px 18px", fontSize: 11 }}
             >
-              <Sparkles size={12} /> Ver plano Max
+              <Sparkles size={12} /> Ver plano Pro
               <ArrowRight size={12} />
             </a>
           </div>
@@ -263,15 +264,16 @@ function Landing() {
             }}
           >
             <div className="rdv-mono" style={{ fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 14, color: "var(--color-rdv-muted)" }}>
-              Plano Max · R$ 149/mês
+              Plano Pro · R$ 99,90/mês
             </div>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 8 }}>
               {[
-                "TikTok scraping incluído",
+                "Radar individual: suas fontes, seu DB",
                 "2 nichos simultâneos",
-                "15 IG · 8 YT · 10 TikTok",
+                "15 IG · 8 YouTube · 10 TikTok · 15 RSS · 12 newsletters",
+                "TikTok scraping incluído",
                 "Briefs IA ilimitados",
-                "Agente IA conversacional dedicado",
+                "Agente IA conversacional dedicado por nicho",
               ].map((feat) => (
                 <li key={feat} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, lineHeight: 1.4 }}>
                   <span style={{ color: "var(--color-rdv-rec)", fontWeight: 800 }}>+</span>
@@ -283,10 +285,11 @@ function Landing() {
         </div>
       </section>
 
-      {/* PRICING TEASER */}
+      {/* PRICING TEASER — 2 planos (Free + Pro). Max foi descontinuado pra
+          novos users em mai/2026 e suas features migraram pro Pro. */}
       <section
         style={{
-          maxWidth: 1100,
+          maxWidth: 900,
           margin: "0 auto",
           padding: "10px 28px 70px",
           display: "grid",
@@ -324,56 +327,7 @@ function Landing() {
               lineHeight: 1.5,
             }}
           >
-            Radar global compartilhado. Brief diário, salvar e bridges pro SV/RV.
-          </p>
-        </div>
-        <div
-          className="rdv-card"
-          style={{
-            padding: "26px 28px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 6,
-          }}
-        >
-          <div className="rdv-eyebrow" style={{ marginBottom: 6 }}>
-            PRO · INDIVIDUAL
-          </div>
-          <div
-            className="rdv-display"
-            style={{
-              fontSize: 36,
-              lineHeight: 1,
-              letterSpacing: "-0.02em",
-              marginBottom: 4,
-              display: "flex",
-              alignItems: "baseline",
-              gap: 8,
-            }}
-          >
-            R$ 49,90
-            <span style={{ fontSize: 13, color: "var(--color-rdv-muted)" }}>
-              /mês
-            </span>
-          </div>
-          <div
-            style={{
-              fontSize: 11,
-              color: "var(--color-rdv-muted)",
-              marginBottom: 8,
-            }}
-          >
-            de <s>R$ 99,90</s>
-          </div>
-          <p
-            style={{
-              fontSize: 13,
-              color: "var(--color-rdv-muted)",
-              lineHeight: 1.5,
-            }}
-          >
-            Cron individual: suas fontes, seu DB, brief IA personalizado. Cap 6
-            IG · 3 YT · 6 RSS · 5 newsletters.
+            Radar global compartilhado. Brief diário, salvar e bridges pro Sequência Viral e Reels Viral.
           </p>
         </div>
         <div
@@ -406,7 +360,7 @@ function Landing() {
             Recomendado
           </span>
           <div className="rdv-eyebrow" style={{ marginBottom: 6 }}>
-            MAX · TIKTOK + IA CHAT
+            PRO · COMPLETO
           </div>
           <div
             className="rdv-display"
@@ -420,7 +374,7 @@ function Landing() {
               gap: 8,
             }}
           >
-            R$ 149
+            R$ 99,90
             <span style={{ fontSize: 13, color: "var(--color-rdv-muted)" }}>
               /mês
             </span>
@@ -432,7 +386,7 @@ function Landing() {
               marginBottom: 8,
             }}
           >
-            de <s>R$ 249</s>
+            de <s>R$ 149</s>
           </div>
           <p
             style={{
@@ -441,8 +395,7 @@ function Landing() {
               lineHeight: 1.5,
             }}
           >
-            TikTok scraping. 2 nichos. Briefs ilimitados. Agente IA conversacional
-            dedicado por nicho.
+            Radar individual com cron próprio. 2 nichos · 15 IG · 8 YouTube · 10 TikTok · 15 RSS · 12 newsletters. Briefs IA ilimitados + agente IA conversacional dedicado por nicho.
           </p>
         </div>
       </section>
@@ -480,6 +433,88 @@ function Landing() {
           <ArrowRight size={14} />
         </button>
       </section>
+
+      {/* FOOTER — branding consistente com Reels e SV ("by Kaleidos Digital") */}
+      <footer
+        style={{
+          borderTop: "1.5px solid var(--color-rdv-ink)",
+          background: "var(--color-rdv-paper)",
+          padding: "32px 28px 24px",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 1100,
+            margin: "0 auto",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 16,
+            alignItems: "center",
+            justifyContent: "space-between",
+            color: "var(--color-rdv-muted)",
+          }}
+        >
+          <div
+            className="rdv-mono"
+            style={{
+              fontSize: 11,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              fontWeight: 700,
+              color: "var(--color-rdv-ink)",
+            }}
+          >
+            Radar Viral · by Kaleidos Digital
+          </div>
+          <nav style={{ display: "flex", flexWrap: "wrap", gap: 20, alignItems: "center" }}>
+            <a
+              href="https://kaleidos.com.br"
+              target="_blank"
+              rel="noreferrer"
+              className="rdv-mono"
+              style={{
+                fontSize: 11,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                color: "var(--color-rdv-muted)",
+                textDecoration: "none",
+              }}
+            >
+              kaleidos.com.br ↗
+            </a>
+            <a
+              href="https://viral.kaleidos.com.br"
+              target="_blank"
+              rel="noreferrer"
+              className="rdv-mono"
+              style={{
+                fontSize: 11,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                color: "var(--color-rdv-muted)",
+                textDecoration: "none",
+              }}
+            >
+              Sequência Viral ↗
+            </a>
+            <a
+              href="https://reels.kaleidos.com.br"
+              target="_blank"
+              rel="noreferrer"
+              className="rdv-mono"
+              style={{
+                fontSize: 11,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                color: "var(--color-rdv-muted)",
+                textDecoration: "none",
+              }}
+            >
+              Reels Viral ↗
+            </a>
+          </nav>
+        </div>
+      </footer>
 
       {showAuth && (
         <AuthDialog
