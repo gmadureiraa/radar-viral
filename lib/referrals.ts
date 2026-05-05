@@ -6,9 +6,9 @@
  *     O cupom em si vive no Stripe Dashboard como `promotion_code` e é
  *     aplicado via `allow_promotion_codes: true` no Checkout (já está
  *     habilitado em app/api/stripe/checkout/route.ts).
- *   - Pro referrer (quem indicou): R$ 25,00 em customer.balance no Stripe
- *     quando o referido paga primeira fatura. Aplica automaticamente no
- *     próximo invoice. Acumula sem limite.
+ *   - Pro referrer (quem indicou): 1 mês grátis de Pro em customer.balance no
+ *     Stripe (= valor exato do Pro mensal) quando o referido paga primeira
+ *     fatura. Abate automaticamente da próxima cobrança. Acumula sem limite.
  *
  * Datastore: Neon Postgres. Como neon_auth.user é managed, mantemos
  * código + saldo em `user_referral_codes` (PK user_id) e histórico em
@@ -22,9 +22,17 @@ import {
   // upsertLeadInAudience,  // não usamos no fluxo de reward (já está sincronizado)
 } from "@/lib/resend";
 import { sendReferralConverted } from "@/lib/email-dispatch";
+import { PLANS_RDV } from "@/lib/pricing";
 
-/** Recompensa fixa em centavos BRL pro referrer quando o referido paga. */
-export const REFERRAL_REWARD_CENTS = 2500; // R$ 25,00
+/**
+ * Recompensa = preço cheio de 1 mês do Pro. Valor importado direto de
+ * PLANS_RDV.pro.priceMonthly pra ficar sempre em sync com o pricing.
+ * Quando o Pro mudar de preço, o reward acompanha automaticamente.
+ *
+ * UI mostra "1 mês grátis de Pro" — credit em BRL é só o mecanismo Stripe.
+ */
+export const REFERRAL_REWARD_CENTS: number = PLANS_RDV.pro.priceMonthly;
+export const REFERRAL_REWARD_LABEL = "1 mês grátis de Pro" as const;
 
 /** Tag dos evens Resend (separa do SV/RV no mesmo painel). */
 const RESEND_EVENT = "radar.referral.converted" as const;
@@ -228,7 +236,8 @@ export async function recordReferralSignup(args: {
  * Steps:
  *  1) Acha a linha referrals_radar pelo referredUserId (status signup ou pending).
  *  2) Busca stripe_customer_id do referrer em user_subscriptions_radar.
- *  3) Cria customer.balanceTransaction de -2500 BRL (negativo = credito).
+ *  3) Cria customer.balanceTransaction de -REFERRAL_REWARD_CENTS (= preço de
+ *     1 mês de Pro). Negativo = crédito; abate na próxima fatura Stripe.
  *  4) Marca referral como converted + reward_applied=true.
  *  5) Incrementa user_referral_codes.referral_credits_cents do referrer.
  *  6) Dispara evento Resend e email transacional.
@@ -301,7 +310,7 @@ export async function applyReferralReward(args: {
     await stripe.customers.createBalanceTransaction(stripeCustomerId, {
       amount: -REFERRAL_REWARD_CENTS, // negativo = crédito
       currency: "brl",
-      description: `Indique e ganhe — recompensa por indicação paga (referral ${referral.id})`,
+      description: `Indique e ganhe — 1 mês grátis de Pro (referral ${referral.id})`,
       metadata: {
         referralId: referral.id,
         referrerUserId,

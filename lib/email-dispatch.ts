@@ -6,7 +6,7 @@
  * inline aqui mesmo com a brand do Radar (paper + REC coral).
  *
  * Uso atual: `sendReferralConverted(...)` no fluxo de webhook Stripe quando
- * um indicado paga e o referrer ganha R$ 25 de crédito.
+ * um indicado paga e o referrer ganha 1 mês grátis de Pro.
  *
  * From canônico: `Radar Viral <radar@news.kaleidos.com.br>`
  * Reply-to:      `madureira@kaleidosdigital.com`
@@ -131,6 +131,12 @@ function renderReferralConvertedHTML(args: {
 }): string {
   const reward = formatBrl(args.rewardCents);
   const total = formatBrl(args.totalCreditCents);
+  // Cada conversão = 1 mês de Pro (reward = 1 × Pro mensal). totalMonths
+  // arredonda pra número inteiro de meses acumulados.
+  const totalMonths = args.rewardCents > 0
+    ? Math.round(args.totalCreditCents / args.rewardCents)
+    : 1;
+  const monthsLabel = totalMonths === 1 ? "1 mês grátis" : `${totalMonths} meses grátis`;
   const name = escape(args.firstName);
   const ctaUrl = `${APP_URL}/app/settings/referrals`;
 
@@ -139,7 +145,7 @@ function renderReferralConvertedHTML(args: {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>+ ${reward} no seu saldo Radar Viral</title>
+  <title>+ 1 mês grátis de Pro no Radar Viral</title>
 </head>
 <body style="margin:0;padding:32px 0;background:#F5F1E8;font-family:-apple-system,BlinkMacSystemFont,'Plus Jakarta Sans',Segoe UI,Helvetica,Arial,sans-serif;color:#0A0908;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F5F1E8;">
@@ -151,13 +157,13 @@ function renderReferralConvertedHTML(args: {
             INDIQUE E GANHE
           </div>
           <h1 style="font-family:'Instrument Serif','Playfair Display',Georgia,serif;font-size:34px;line-height:1.05;letter-spacing:-0.02em;margin:0 0 16px;color:#0A0908;font-weight:400;">
-            ${name}, você acabou de ganhar <em style="font-style:italic;color:#FF3D2E;">${reward}</em>.
+            ${name}, você ganhou <em style="font-style:italic;color:#FF3D2E;">1 mês grátis de Pro</em>.
           </h1>
           <p style="font-size:15px;line-height:1.6;margin:0 0 14px;color:#0A0908;">
-            Um amigo seu acabou de assinar o <strong>Radar Viral</strong> usando seu link de indicação. Como combinado, <strong>${reward}</strong> entraram no seu saldo agora.
+            Um amigo seu acabou de assinar o <strong>Radar Viral</strong> usando seu link de indicação. Como combinado, <strong>1 mês grátis de Pro</strong> (${reward}) entrou no seu saldo agora — vai abater na sua próxima fatura.
           </p>
           <p style="font-size:15px;line-height:1.6;margin:0 0 22px;color:#0A0908;">
-            Crédito total acumulado: <strong>${total}</strong>. Vai abater automaticamente na sua próxima fatura, sem precisar fazer nada.
+            Total acumulado: <strong>${monthsLabel} de Pro</strong> (${total} em crédito Stripe). Sem ação sua — Stripe abate sozinho na próxima cobrança.
           </p>
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 18px;">
             <tr><td>
@@ -167,7 +173,7 @@ function renderReferralConvertedHTML(args: {
             </td></tr>
           </table>
           <p style="font-size:14px;line-height:1.6;margin:0 0 8px;color:#0A0908;">
-            Continua valendo: cada amigo novo que assinar com seu link te dá <strong>${reward}</strong> de crédito. Sem limite de indicações, e os créditos acumulam.
+            Continua valendo: cada amigo novo que assinar com seu link te dá <strong>+1 mês grátis de Pro</strong>. Sem limite de indicações, e os créditos acumulam.
           </p>
           <hr style="border:none;border-top:1px solid #DDD7CA;margin:24px 0 14px;" />
           <p style="font-size:11px;line-height:1.6;margin:0;color:#6B6660;">
@@ -189,11 +195,10 @@ export async function sendReferralConverted(
   args: { rewardCents: number; totalCreditCents: number },
 ): Promise<{ ok: boolean; error?: string }> {
   const firstName = (user.name || "").trim().split(" ")[0] || "você";
-  const reward = formatBrl(args.rewardCents);
 
   return send({
     to: user.email,
-    subject: `+ ${reward} no seu saldo Radar Viral`,
+    subject: `🎁 Você ganhou 1 mês grátis de Pro no Radar Viral`,
     html: renderReferralConvertedHTML({
       firstName,
       rewardCents: args.rewardCents,
