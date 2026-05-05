@@ -18,6 +18,7 @@ import { neon } from "@neondatabase/serverless";
 import { getCuratedSources } from "@/lib/sources-curated";
 import { PLANS_RDV } from "@/lib/pricing";
 import { applyReferralReward } from "@/lib/referrals";
+import { fireResendEvent } from "@/lib/resend";
 
 export const runtime = "nodejs";
 
@@ -80,6 +81,9 @@ export async function POST(req: Request) {
       case "customer.subscription.deleted":
         await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
         break;
+      case "invoice.payment_failed":
+        await handleInvoicePaymentFailed(event.data.object as Stripe.Invoice);
+        break;
       default:
         // Ignora outros eventos
         break;
@@ -114,6 +118,45 @@ export async function POST(req: Request) {
 // ───────────────────────────────────────────────────────────────────────
 // Handlers
 // ───────────────────────────────────────────────────────────────────────
+
+/**
+ * Lê email + name de neon_auth.user pra user_id. Usado pra enriquecer events
+ * Resend (que usam email como chave). Falha silenciosa.
+ */
+async function lookupUserContact(
+  userId: string,
+): Promise<{ email: string | null; name: string | null }> {
+  try {
+    const sql = getSql();
+    const rows = (await sql`
+      SELECT email, name FROM neon_auth.user WHERE id = ${userId} LIMIT 1
+    `) as Array<{ email: string | null; name: string | null }>;
+    return rows[0] ?? { email: null, name: null };
+  } catch (err) {
+    console.warn("[webhook] lookupUserContact falhou:", err);
+    return { email: null, name: null };
+  }
+}
+
+/**
+ * Resolve userId via stripe_customer_id (fallback quando metadata sumiu).
+ */
+async function lookupUserIdByCustomer(
+  customerId: string | null,
+): Promise<string | null> {
+  if (!customerId) return null;
+  try {
+    const sql = getSql();
+    const rows = (await sql`
+      SELECT user_id FROM user_subscriptions_radar
+       WHERE stripe_customer_id = ${customerId}
+       LIMIT 1
+    `) as Array<{ user_id: string }>;
+    return rows[0]?.user_id ?? null;
+  } catch {
+    return null;
+  }
+}
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   if (session.metadata?.app !== STRIPE_APP_TAG) return;
@@ -184,6 +227,25 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   } catch (err) {
     console.warn("[webhook] applyReferralReward falhou:", err);
   }
+
+  // ── Resend event: radar.upgraded ──────────────────────────────────
+  // Alimenta automação de welcome/onboarding-pro no painel Resend.
+  try {
+    const contact = await lookupUserContact(userId);
+    const priceCents = PLANS_RDV[planId]?.priceMonthly ?? 0;
+    await fireResendEvent("radar.upgraded", {
+      email: contact.email,
+      user_id: userId,
+      plan: planId,
+      previous_plan: "free",
+      price_cents: priceCents,
+      stripe_customer_id: customerId,
+      stripe_subscription_id: subscriptionId,
+      source: "checkout.session.completed",
+    });
+  } catch (err) {
+    console.warn("[webhook] fireResendEvent radar.upgraded falhou:", err);
+  }
 }
 
 /**
@@ -246,6 +308,17 @@ async function handleSubscriptionUpdated(sub: Stripe.Subscription) {
     return;
   }
 
+  // Lê plano + cancel_at_period_end anteriores pra detectar transições e
+  // disparar event Resend correto (upgrade, downgrade, cancel-scheduled).
+  const prevRows = (await sql`
+    SELECT plan, cancel_at_period_end
+      FROM user_subscriptions_radar
+     WHERE stripe_subscription_id = ${sub.id}
+     LIMIT 1
+  `) as Array<{ plan: string; cancel_at_period_end: boolean }>;
+  const previousPlan = (prevRows[0]?.plan ?? "free") as PlanId;
+  const previousCancelAtPeriodEnd = !!prevRows[0]?.cancel_at_period_end;
+
   await sql`
     UPDATE user_subscriptions_radar
        SET plan = ${planId},
@@ -258,6 +331,49 @@ async function handleSubscriptionUpdated(sub: Stripe.Subscription) {
      WHERE stripe_subscription_id = ${sub.id}
   `;
   console.log(`[webhook] sub atualizada ${sub.id} status=${sub.status} user=${userId}`);
+
+  // ── Eventos Resend de transição ────────────────────────────────────
+  // Plano mudou? dispara radar.upgraded (cobre upgrade Pro→Max e downgrade
+  // — automação no painel decide o template). cancel_at_period_end virou
+  // true? dispara radar.canceled (sub ainda ativa até period_end).
+  try {
+    const planChanged = previousPlan !== planId;
+    const justScheduledCancel =
+      !previousCancelAtPeriodEnd && sub.cancel_at_period_end;
+
+    if (planChanged || justScheduledCancel) {
+      const contact = await lookupUserContact(userId);
+      if (planChanged) {
+        const priceCents = PLANS_RDV[planId]?.priceMonthly ?? 0;
+        await fireResendEvent("radar.upgraded", {
+          email: contact.email,
+          user_id: userId,
+          plan: planId,
+          previous_plan: previousPlan,
+          price_cents: priceCents,
+          stripe_subscription_id: sub.id,
+          source: "subscription.updated",
+        });
+      }
+      if (justScheduledCancel) {
+        const periodEndIso = new Date(
+          (sub as unknown as { current_period_end: number }).current_period_end *
+            1000,
+        ).toISOString();
+        await fireResendEvent("radar.canceled", {
+          email: contact.email,
+          user_id: userId,
+          plan: planId,
+          stripe_subscription_id: sub.id,
+          cancel_at_period_end: true,
+          current_period_end: periodEndIso,
+          source: "subscription.updated",
+        });
+      }
+    }
+  } catch (err) {
+    console.warn("[webhook] fireResendEvent (sub.updated) falhou:", err);
+  }
 }
 
 async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
@@ -268,8 +384,14 @@ async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
        SET plan = 'free', status = 'canceled', updated_at = NOW()
      WHERE stripe_subscription_id = ${sub.id}
   `;
+  // Resolve userId: metadata primeiro, fallback via stripe_customer_id.
+  let userId: string | null = sub.metadata?.userId ?? null;
+  if (!userId) {
+    const customerId = typeof sub.customer === "string" ? sub.customer : null;
+    userId = await lookupUserIdByCustomer(customerId);
+  }
+
   // Desativa fontes individuais (deixa o user voltando pro radar global)
-  const userId = sub.metadata?.userId;
   if (userId) {
     await sql`
       UPDATE tracked_sources
@@ -285,6 +407,94 @@ async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
     `.catch((err) => console.warn("[webhook] disable ai_enabled failed:", err));
   }
   console.log(`[webhook] sub cancelada ${sub.id} → user volta pra free`);
+
+  // ── Resend event: radar.canceled (definitivo, plano agora = free) ─
+  if (userId) {
+    try {
+      const contact = await lookupUserContact(userId);
+      const previousPlan = (sub.metadata?.planId as PlanId | undefined) ?? null;
+      await fireResendEvent("radar.canceled", {
+        email: contact.email,
+        user_id: userId,
+        plan: "free",
+        previous_plan: previousPlan,
+        stripe_subscription_id: sub.id,
+        cancel_at_period_end: false,
+        source: "subscription.deleted",
+      });
+    } catch (err) {
+      console.warn("[webhook] fireResendEvent radar.canceled falhou:", err);
+    }
+  }
+}
+
+/**
+ * invoice.payment_failed — cobrança recorrente falhou (cartão expirou,
+ * sem saldo, etc). Stripe retenta automaticamente conforme política do
+ * Smart Retries; aqui só disparamos o event Resend pra automação avisar
+ * o user. NÃO mexemos no plano: Stripe muda status pra past_due via
+ * customer.subscription.updated, que já tratamos separado.
+ */
+async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
+  // Filtro app: lê metadata da subscription (invoice em si não tem app tag).
+  const subscriptionId =
+    typeof (invoice as unknown as { subscription?: string | null }).subscription ===
+    "string"
+      ? ((invoice as unknown as { subscription: string }).subscription as string)
+      : null;
+  if (!subscriptionId) return;
+
+  let sub: Stripe.Subscription;
+  try {
+    sub = await stripe.subscriptions.retrieve(subscriptionId);
+  } catch (err) {
+    console.warn("[webhook] invoice.payment_failed retrieve sub falhou:", err);
+    return;
+  }
+  if (sub.metadata?.app !== STRIPE_APP_TAG) return;
+
+  // Resolve userId
+  let userId: string | null = sub.metadata?.userId ?? null;
+  if (!userId) {
+    const customerId = typeof sub.customer === "string" ? sub.customer : null;
+    userId = await lookupUserIdByCustomer(customerId);
+  }
+  if (!userId) {
+    console.warn("[webhook] invoice.payment_failed sem userId resolvível");
+    return;
+  }
+
+  const planId = (sub.metadata?.planId as PlanId | undefined) ?? null;
+  const amountDue =
+    (invoice as unknown as { amount_due?: number }).amount_due ?? 0;
+  const hostedInvoiceUrl =
+    (invoice as unknown as { hosted_invoice_url?: string | null })
+      .hosted_invoice_url ?? null;
+  const attemptCount =
+    (invoice as unknown as { attempt_count?: number }).attempt_count ?? 0;
+  const nextPaymentAttempt =
+    (invoice as unknown as { next_payment_attempt?: number | null })
+      .next_payment_attempt ?? null;
+
+  try {
+    const contact = await lookupUserContact(userId);
+    await fireResendEvent("radar.payment.failed", {
+      email: contact.email,
+      user_id: userId,
+      plan: planId,
+      stripe_subscription_id: sub.id,
+      stripe_invoice_id: invoice.id,
+      amount_due_cents: amountDue,
+      attempt_count: attemptCount,
+      next_payment_attempt: nextPaymentAttempt
+        ? new Date(nextPaymentAttempt * 1000).toISOString()
+        : null,
+      hosted_invoice_url: hostedInvoiceUrl,
+      source: "invoice.payment_failed",
+    });
+  } catch (err) {
+    console.warn("[webhook] fireResendEvent radar.payment.failed falhou:", err);
+  }
 }
 
 /**

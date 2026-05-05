@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { PLANS_RDV, type PlanId } from "@/lib/pricing";
 import { useNeonSession, getJwtToken } from "@/lib/auth-client";
 import { trackSubscribe } from "@/lib/meta-pixel";
+import { getStoredReferralCode } from "@/lib/referral-client";
 
 interface SubscriptionInfo {
   plan: PlanId;
@@ -85,10 +86,15 @@ function PricingInner() {
       const jwt = await getJwtToken();
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (jwt) headers["Authorization"] = `Bearer ${jwt}`;
+      // Defense-in-depth: signup já registra a referral em referrals_radar
+      // (via /api/referrals/track), mas se aquele tracking falhou silencioso,
+      // re-enviar o código no checkout garante que metadata.referralCode
+      // chegue na session e o webhook ainda consiga creditar o referrer.
+      const referralCode = getStoredReferralCode();
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers,
-        body: JSON.stringify({ planId }),
+        body: JSON.stringify({ planId, ...(referralCode ? { referralCode } : {}) }),
       });
       const data = await res.json();
       if (!res.ok || !data.url) throw new Error(data.error ?? "Falha ao criar checkout");
