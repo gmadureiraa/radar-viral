@@ -23,6 +23,8 @@ import {
   ExternalLink,
   Layers,
   Film,
+  TrendingUp,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useNeonSession, getJwtToken } from "@/lib/auth-client";
@@ -79,6 +81,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savedTopics, setSavedTopics] = useState<Set<string>>(new Set());
+  const [savedIdeas, setSavedIdeas] = useState<Set<string>>(new Set());
+  const [lastSync, setLastSync] = useState<string | null>(null);
 
   useEffect(() => {
     if (!session.data?.user) return;
@@ -88,11 +92,14 @@ export default function DashboardPage() {
       try {
         const jwt = await getJwtToken();
         const headers = jwt ? { Authorization: `Bearer ${jwt}` } : undefined;
-        const [briefRes, subRes, savedRes] = await Promise.all([
-          fetch(`/api/brief?niche=${niche.id}`, { headers }),
-          fetch("/api/me/subscription", { headers }),
-          fetch("/api/data/saved?platform=topic", { headers }),
-        ]);
+        const [briefRes, subRes, savedTopicRes, savedIdeaRes, syncRes] =
+          await Promise.all([
+            fetch(`/api/brief?niche=${niche.id}`, { headers }),
+            fetch("/api/me/subscription", { headers }),
+            fetch("/api/data/saved?platform=topic", { headers }),
+            fetch("/api/data/saved?platform=idea", { headers }),
+            fetch("/api/last-sync"),
+          ]);
         if (!briefRes.ok) {
           setError(`HTTP ${briefRes.status}`);
           return;
@@ -111,11 +118,23 @@ export default function DashboardPage() {
           if (!cancel) setSub(subData);
         }
 
-        if (savedRes.ok) {
-          const savedData = (await savedRes.json()) as {
+        if (savedTopicRes.ok) {
+          const savedData = (await savedTopicRes.json()) as {
             items: Array<{ ref_id: string }>;
           };
           if (!cancel) setSavedTopics(new Set((savedData.items ?? []).map((i) => i.ref_id)));
+        }
+
+        if (savedIdeaRes.ok) {
+          const savedData = (await savedIdeaRes.json()) as {
+            items: Array<{ ref_id: string }>;
+          };
+          if (!cancel) setSavedIdeas(new Set((savedData.items ?? []).map((i) => i.ref_id)));
+        }
+
+        if (syncRes.ok) {
+          const syncData = (await syncRes.json()) as { latest: string | null };
+          if (!cancel) setLastSync(syncData.latest);
         }
       } catch (err) {
         if (!cancel) setError(err instanceof Error ? err.message : "Erro");
@@ -127,6 +146,52 @@ export default function DashboardPage() {
       cancel = true;
     };
   }, [session.data?.user?.id, niche.id]);
+
+  const handleSaveIdea = useCallback(
+    async (idea: BriefCarouselIdea) => {
+      const refId = topicRefId(idea.hook);
+      const isSaved = savedIdeas.has(refId);
+      try {
+        const jwt = await getJwtToken();
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (jwt) headers["Authorization"] = `Bearer ${jwt}`;
+
+        if (isSaved) {
+          const res = await fetch(
+            `/api/data/saved?platform=idea&refId=${encodeURIComponent(refId)}`,
+            { method: "DELETE", headers },
+          );
+          if (!res.ok) throw new Error("Falha ao remover");
+          setSavedIdeas((prev) => {
+            const next = new Set(prev);
+            next.delete(refId);
+            return next;
+          });
+          toast.success("Ideia removida dos salvos");
+        } else {
+          const res = await fetch("/api/data/saved", {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              platform: "idea",
+              refId,
+              nicheSlug: niche.id,
+              title: idea.hook,
+              note: idea.angle,
+            }),
+          });
+          if (!res.ok) throw new Error("Falha ao salvar");
+          setSavedIdeas((prev) => new Set(prev).add(refId));
+          toast.success("Ideia salva");
+        }
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro");
+      }
+    },
+    [savedIdeas, niche.id],
+  );
 
   const handleSaveTopic = useCallback(
     async (topic: BriefHotTopic) => {
@@ -204,6 +269,23 @@ export default function DashboardPage() {
           <span className="rdv-rec-dot" /> DASHBOARD · {briefDateLabel ?? "AGUARDANDO BRIEF"}
         </div>
         {sub && <PlanPill plan={sub.plan} />}
+        {lastSync && (
+          <span
+            className="rdv-mono"
+            style={{
+              fontSize: 9.5,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: "var(--color-rdv-muted)",
+              padding: "3px 8px",
+              border: "1px solid var(--color-rdv-line)",
+            }}
+            title={`Última ingestão: ${new Date(lastSync).toLocaleString("pt-BR")}`}
+          >
+            <span style={{ marginRight: 6 }}>◴</span>
+            ATUALIZADO {formatRelativeTime(lastSync)}
+          </span>
+        )}
       </div>
       <h1
         className="rdv-display"
@@ -291,6 +373,7 @@ export default function DashboardPage() {
                     rank={i + 1}
                     saved={savedTopics.has(topicRefId(t.topic))}
                     onToggleSave={() => void handleSaveTopic(t)}
+                    velocity={computeVelocity(t, previousBrief)}
                   />
                 ))}
               </div>
@@ -338,7 +421,12 @@ export default function DashboardPage() {
             >
               <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
                 {(brief.carousel_ideas ?? []).slice(0, 6).map((idea, i) => (
-                  <IdeaCard key={i} idea={idea} />
+                  <IdeaCard
+                    key={i}
+                    idea={idea}
+                    saved={savedIdeas.has(topicRefId(idea.hook))}
+                    onToggleSave={() => void handleSaveIdea(idea)}
+                  />
                 ))}
               </div>
             </Section>
@@ -419,11 +507,13 @@ function TopicCard({
   rank,
   saved,
   onToggleSave,
+  velocity,
 }: {
   topic: BriefHotTopic;
   rank: number;
   saved: boolean;
   onToggleSave: () => void;
+  velocity: VelocityKind;
 }) {
   const filled = topic.signal_count >= 6 ? 3 : topic.signal_count >= 3 ? 2 : 1;
   const intensity = filled === 3 ? "forte" : filled === 2 ? "médio" : "fraco";
@@ -473,6 +563,7 @@ function TopicCard({
               />
             ))}
           </div>
+          {velocity !== "neutral" && <VelocityBadge kind={velocity} />}
         </div>
         <p style={{ fontSize: 12.5, color: "var(--color-rdv-muted)", lineHeight: 1.45 }}>
           {topic.source_summary}
@@ -654,6 +745,92 @@ function rvBridgeUrl(topic: string): string {
   return `https://reels-viral.vercel.app/?topic=${encodeURIComponent(topic)}`;
 }
 
+type VelocityKind = "novo" | "subindo" | "explosao" | "neutral";
+
+function computeVelocity(
+  topic: BriefHotTopic,
+  previous: DailyBrief | null,
+): VelocityKind {
+  if (!previous?.hot_topics) return topic.signal_count >= 3 ? "novo" : "neutral";
+  const yKey = topic.topic
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  let bestScore = 0;
+  let bestPrev: BriefHotTopic | null = null;
+  for (const p of previous.hot_topics) {
+    const pKey = p.topic
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+    const tokensA = new Set(yKey.split(" ").filter((t) => t.length > 2));
+    const tokensB = new Set(pKey.split(" ").filter((t) => t.length > 2));
+    let inter = 0;
+    for (const t of tokensA) if (tokensB.has(t)) inter++;
+    const union = tokensA.size + tokensB.size - inter;
+    const score = union === 0 ? 0 : inter / union;
+    if (score > bestScore && score >= 0.4) {
+      bestScore = score;
+      bestPrev = p;
+    }
+  }
+  if (!bestPrev) return topic.signal_count >= 3 ? "novo" : "neutral";
+  const ratio = topic.signal_count / Math.max(1, bestPrev.signal_count);
+  if (ratio >= 2 && topic.signal_count >= 3) return "explosao";
+  if (topic.signal_count > bestPrev.signal_count) return "subindo";
+  return "neutral";
+}
+
+function VelocityBadge({ kind }: { kind: VelocityKind }) {
+  if (kind === "neutral") return null;
+  const config = {
+    novo: { label: "NOVO", icon: <Zap size={9} />, color: "#10B981" },
+    subindo: { label: "SUBINDO", icon: <TrendingUp size={9} />, color: "var(--color-rdv-rec)" },
+    explosao: { label: "EXPLODINDO", icon: <Flame size={9} />, color: "var(--color-rdv-rec)" },
+  }[kind];
+  const isExplosao = kind === "explosao";
+  return (
+    <span
+      className="rdv-mono"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        fontSize: 8.5,
+        fontWeight: 800,
+        letterSpacing: "0.16em",
+        padding: "3px 7px",
+        background: isExplosao ? config.color : "transparent",
+        color: isExplosao ? "white" : config.color,
+        border: `1px solid ${config.color}`,
+      }}
+    >
+      {config.icon}
+      {config.label}
+    </span>
+  );
+}
+
+function formatRelativeTime(iso: string): string {
+  const t = new Date(iso).getTime();
+  const now = Date.now();
+  const diffMs = now - t;
+  if (Number.isNaN(t) || diffMs < 0) return "AGORA";
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 60) return "AGORA";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `HÁ ${min} MIN`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `HÁ ${hr}H`;
+  const days = Math.floor(hr / 24);
+  if (days === 1) return "ONTEM";
+  return `HÁ ${days}D`;
+}
+
 function topicRefId(topic: string): string {
   return topic
     .toLowerCase()
@@ -712,7 +889,15 @@ function NarrativeCard({ narrative }: { narrative: BriefNarrative }) {
   );
 }
 
-function IdeaCard({ idea }: { idea: BriefCarouselIdea }) {
+function IdeaCard({
+  idea,
+  saved,
+  onToggleSave,
+}: {
+  idea: BriefCarouselIdea;
+  saved: boolean;
+  onToggleSave: () => void;
+}) {
   return (
     <div className="rdv-card" style={{ padding: "16px 18px" }}>
       <div className="rdv-eyebrow" style={{ marginBottom: 8 }}>
@@ -743,6 +928,20 @@ function IdeaCard({ idea }: { idea: BriefCarouselIdea }) {
         >
           <Film size={10} /> Reel RV
         </a>
+        <button
+          type="button"
+          onClick={onToggleSave}
+          className="rdv-btn rdv-btn-ghost"
+          style={{
+            padding: "5px 10px",
+            fontSize: 9,
+            color: saved ? "var(--color-rdv-rec)" : undefined,
+            borderColor: saved ? "var(--color-rdv-rec)" : undefined,
+          }}
+        >
+          {saved ? <BookmarkCheck size={10} /> : <Bookmark size={10} />}{" "}
+          {saved ? "Salva" : "Salvar"}
+        </button>
       </div>
     </div>
   );
