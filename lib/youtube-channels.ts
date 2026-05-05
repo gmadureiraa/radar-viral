@@ -44,10 +44,8 @@ export const YOUTUBE_CHANNELS: YoutubeChannel[] = [
   { id: "gary-vee", name: "GaryVee", handle: "@garyvee", channelId: "UCctXZhXmG-kf3tlIXgVZUlw", niche: "marketing" },
   { id: "neil-patel", name: "Neil Patel", handle: "@neilpatel", channelId: "UCl-Zrl0QhF66lu1aGXaTbfw", niche: "marketing" },
   { id: "ahrefs", name: "Ahrefs", handle: "@AhrefsCom", channelId: "UCWquNQV8Y0_defMKnGKrFOQ", niche: "marketing" },
-  { id: "matt-gray", name: "Matt Gray", handle: "@mattgrayyy", channelId: "UCdJ0pPFPPF3y6PaTBgjBLQg", niche: "marketing" },
-  { id: "justin-welsh", name: "Justin Welsh", handle: "@JustinWelshOfficial", channelId: "UCAqLQ_5jPoZepEsk09Gj5Lw", niche: "marketing" },
-  { id: "income-school", name: "Income School", handle: "@IncomeSchool", channelId: "UCO5l5J5j5K7Cm5T8A4FJoVA", niche: "marketing" },
-  { id: "fellipe-toledo", name: "Fellipe Toledo", handle: "@fellipetoledo", channelId: "UCV9rW2yFcZ6_oKjvRwK3vNw", niche: "marketing" },
+  { id: "income-school", name: "Income School", handle: "@IncomeSchool", channelId: "UCytOqtKYpACcWMD14UjhSeQ", niche: "marketing" },
+  { id: "fellipe-toledo", name: "Fellipe Toledo", handle: "@fellipetoledo", channelId: "UCGVQSuNSc4aTqwgEX6bGbjw", niche: "marketing" },
   { id: "colin-bryar", name: "Colin and Samir", handle: "@ColinandSamir", channelId: "UCamLstJyCa-t5gfZegxsFMw", niche: "marketing" },
   { id: "matt-wolfe", name: "Matt Wolfe", handle: "@mreflow", channelId: "UChpleBmo18P08aKCIgti38g", niche: "ai" },
   { id: "aiexplained", name: "AI Explained", handle: "@aiexplained-official", channelId: "UCNJ1Ymd5yFuUPtn21xtRbbw", niche: "ai" },
@@ -55,10 +53,10 @@ export const YOUTUBE_CHANNELS: YoutubeChannel[] = [
   { id: "matthew-berman", name: "Matthew Berman", handle: "@matthew_berman", channelId: "UCawZsQWqfGSbCI5yjkdVkTA", niche: "ai" },
   { id: "wes-roth", name: "Wes Roth", handle: "@WesRoth", channelId: "UCqcbQf6yw5KzRoDDcZ_wBSw", niche: "ai" },
   { id: "all-about-ai", name: "All About AI", handle: "@AllAboutAI", channelId: "UCR-DXc1voovS8nhAvccRZhg", niche: "ai" },
-  { id: "sam-witteveen", name: "Sam Witteveen", handle: "@samwitteveenai", channelId: "UC55ODhRtAEdSKfTo9LzXFog", niche: "ai" },
-  { id: "ai-jason", name: "AI Jason", handle: "@AIJasonZ", channelId: "UCC1l5O-vrePfV-bPOV7zsGA", niche: "ai" },
+  { id: "sam-witteveen", name: "Sam Witteveen", handle: "@samwitteveenai", channelId: "UC55ODQSvARtgSyc8ThfiepQ", niche: "ai" },
+  { id: "ai-jason", name: "AI Jason", handle: "@AIJasonZ", channelId: "UCrXSVX9a1mj8l0CMLwKgMVw", niche: "ai" },
   { id: "lex-fridman", name: "Lex Fridman", handle: "@lexfridman", channelId: "UCSHZKyawb77ixDdsGog4iWA", niche: "ai" },
-  { id: "dwarkesh", name: "Dwarkesh Patel", handle: "@DwarkeshPatel", channelId: "UCVpD7DlwQoWZsWEBvbiB-uQ", niche: "ai" },
+  { id: "dwarkesh", name: "Dwarkesh Patel", handle: "@DwarkeshPatel", channelId: "UCXl4i9dYBrFOabk0xGmbkRA", niche: "ai" },
 ];
 
 export function getChannelsByNiche(niche: string): YoutubeChannel[] {
