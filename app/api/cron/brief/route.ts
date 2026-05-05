@@ -37,10 +37,32 @@ interface IgRow {
   likes: number;
   comments: number;
 }
+interface YtRow {
+  channel_name: string;
+  channel_handle: string | null;
+  title: string;
+  category: string | null;
+}
 
+/**
+ * Coleta sinais das 3 fontes (news + IG + YT) das últimas 48h.
+ *
+ * YT lookup precisa cruzar `videos.channel_handle` com curated do nicho
+ * (case-insensitive — RSS às vezes guarda case diferente do nosso).
+ * `videos` não tem coluna niche, então usa-se a lista de handles.
+ */
 async function collectSignals(sql: SqlClient, nicheSlug: string) {
   const cutoff = new Date(Date.now() - 48 * 3_600_000).toISOString();
-  const [newsRaw, igRaw] = await Promise.all([
+
+  // Resolve handles YT do nicho via catálogo (lowercased)
+  const { getCuratedSources } = await import("@/lib/sources-curated");
+  const curated = getCuratedSources(nicheSlug);
+  const ytHandles =
+    curated?.youtubeChannels.map((c) =>
+      (c.handle.startsWith("@") ? c.handle : `@${c.handle}`).toLowerCase(),
+    ) ?? [];
+
+  const [newsRaw, igRaw, ytRaw] = await Promise.all([
     sql`
       SELECT title, source_name, description, link
         FROM news_articles
@@ -53,13 +75,24 @@ async function collectSignals(sql: SqlClient, nicheSlug: string) {
        WHERE niche = ${nicheSlug} AND posted_at >= ${cutoff}
        ORDER BY likes DESC LIMIT 10
     `,
+    ytHandles.length > 0
+      ? sql`
+          SELECT channel_name, channel_handle, title, category
+            FROM videos
+           WHERE published_at >= ${cutoff}
+             AND lower(channel_handle) = ANY(${ytHandles})
+           ORDER BY published_at DESC LIMIT 10
+        `
+      : Promise.resolve([]),
   ]);
   const news = newsRaw as unknown as NewsRow[];
   const ig = igRaw as unknown as IgRow[];
+  const yt = ytRaw as unknown as YtRow[];
   return {
     news,
     ig,
-    counts: { news: news.length, ig: ig.length },
+    yt,
+    counts: { news: news.length, ig: ig.length, yt: yt.length },
   };
 }
 
@@ -78,30 +111,61 @@ function buildPrompt(
   const otherTwo = otherSlugs.slice(0, 2);
   const otherDesc = otherTwo.length > 0 ? otherTwo.join(" e ") : "outros nichos";
   return [
-    `Você é um analista editorial de conteúdo viral. Analise os SINAIS abaixo das últimas 48h do nicho "${niche.label}" (${niche.description}) e produza UM brief estratégico em JSON.`,
+    `Você é um analista editorial de conteúdo viral. Analise os SINAIS das últimas 48h cruzando 3 plataformas (notícias, Instagram, YouTube) do nicho "${niche.label}" (${niche.description}) e produza UM brief estratégico em JSON.`,
     "",
-    `# SINAIS (top items por engagement)`,
+    `IMPORTANTE: cite explicitamente em "sources" pelo menos UMA referência de cada plataforma quando houver dado disponível, pra mostrar que cruzou as fontes.`,
+    "",
+    `# SINAIS (top items das últimas 48h)`,
     "",
     `## 📰 Notícias (${signals.news.length})`,
-    ...signals.news.slice(0, 12).map(
-      (n) => `- [${n.source_name}] ${n.title}${n.description ? ` — ${n.description.slice(0, 100)}` : ""}`,
-    ),
+    signals.news.length === 0
+      ? "(sem notícias nas últimas 48h)"
+      : signals.news
+          .slice(0, 12)
+          .map(
+            (n) =>
+              `- [${n.source_name}] ${n.title}${n.description ? ` — ${n.description.slice(0, 100)}` : ""}`,
+          )
+          .join("\n"),
     "",
     `## 📸 Instagram top likes (${signals.ig.length})`,
-    ...signals.ig.slice(0, 8).map(
-      (i) => `- @${i.account_handle} · ❤${i.likes} · ${(i.caption ?? "").slice(0, 120)}`,
-    ),
+    signals.ig.length === 0
+      ? "(sem posts IG nas últimas 48h)"
+      : signals.ig
+          .slice(0, 8)
+          .map(
+            (i) =>
+              `- @${i.account_handle} · ❤${i.likes} · ${(i.caption ?? "").slice(0, 120)}`,
+          )
+          .join("\n"),
+    "",
+    `## 🎥 YouTube novos vídeos (${signals.yt.length})`,
+    signals.yt.length === 0
+      ? "(sem vídeos YT nas últimas 48h)"
+      : signals.yt
+          .slice(0, 8)
+          .map(
+            (v) =>
+              `- ${v.channel_name} (${v.channel_handle ?? ""}): ${v.title.slice(0, 140)}`,
+          )
+          .join("\n"),
     "",
     `# OUTPUT — apenas este JSON, sem markdown fences:`,
     `{`,
-    `  "narratives": [{ "title": "string curta", "explanation": "1-2 frases", "sources": ["ref 1"] }],`,
-    `  "hot_topics": [{ "topic": "termo chave", "signal_count": 0, "source_summary": "frase" }],`,
-    `  "carousel_ideas": [{ "hook": "FRASE CAIXA ALTA", "angle": "twist", "evidence": "dado", "suggested_cta": "CTA" }],`,
-    `  "cross_pollination": [{ "from_niche": "${niche.id}", "to_niche": "${otherTwo[0] ?? "outro"}", "why": "como serve em ${otherDesc}" }]`,
+    `  "narratives": [{ "title": "string curta", "explanation": "1-2 frases", "sources": ["título de notícia ou @handle ou canal YT"] }],`,
+    `  "hot_topics": [{ "topic": "termo chave", "signal_count": 0, "source_summary": "1 frase mencionando de onde vem (news/IG/YT)" }],`,
+    `  "carousel_ideas": [{ "hook": "FRASE CAIXA ALTA", "angle": "twist", "evidence": "dado concreto da fonte", "suggested_cta": "CTA" }],`,
+    `  "cross_pollination": [{ "topic": "tema", "sources": ["news", "instagram", "youtube"] }]`,
     `}`,
     "",
-    `Regras: PT-BR coloquial; concretude (nomes/números); 3 narrativas; 5 hot_topics; 3 carousel_ideas; cross_pollination opcional.`,
-    `Primeiro caractere = '{', último = '}'.`,
+    `Regras:`,
+    `- PT-BR coloquial`,
+    `- Concretude: nomes próprios, números, valores em $`,
+    `- 3 narrativas (priorize as que aparecem em MAIS DE UMA plataforma)`,
+    `- 5 hot_topics`,
+    `- 3 carousel_ideas (hook + ângulo claro)`,
+    `- cross_pollination: até 4 itens, só inclua tópicos que apareceram em 2+ plataformas (news+ig, news+yt, ig+yt, ou todas 3). Nas "sources" liste APENAS plataformas, não títulos.`,
+    `- Primeiro caractere = '{', último = '}'.`,
   ].join("\n");
 }
 
@@ -209,7 +273,8 @@ export async function GET(req: Request) {
       }
 
       const signals = await collectSignals(sql, niche.id);
-      const total = signals.counts.news + signals.counts.ig;
+      const total =
+        signals.counts.news + signals.counts.ig + signals.counts.yt;
       if (total < 3) {
         detail.push({ slug: niche.id, status: `skipped_${total}_signals` });
         totalSkipped++;

@@ -21,10 +21,12 @@ import {
   Film,
   ArrowRight,
   Video,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getJwtToken } from "@/lib/auth-client";
 import { imgProxy } from "@/lib/img-proxy";
+import { getCuratedSources } from "@/lib/sources-curated";
 import type { InstagramPostRow } from "@/app/api/data/instagram/posts/route";
 
 interface Props {
@@ -188,10 +190,10 @@ export function TopInstagramSection({
       ) : error ? (
         <EmptyCard msg={`Erro ao carregar IG (${error}).`} />
       ) : !items.length ? (
-        <EmptyCard
-          msg={emptyMsg}
-          ctaHref="/app/settings"
-          ctaLabel="Adicionar handles →"
+        <RichEmptyIG
+          nicheId={nicheId}
+          mediaType={mediaType}
+          isPaid={isPaid}
         />
       ) : (
         <div
@@ -383,6 +385,124 @@ function rvBridgeFromIg(post: InstagramPostRow): string {
  * Mesma vibe da PostPlaceholder do /app/instagram mas otimizado pra
  * tile menor (aspect-ratio 1:1).
  */
+/**
+ * Empty state rico pra IG: explica o motivo + lista 3 handles curados
+ * do nicho que vão entrar quando o cron rodar / quando user adicionar.
+ *
+ * Substitui o card "vazio" simples — empty state com utilidade vira
+ * onboarding implícito.
+ */
+function RichEmptyIG({
+  nicheId,
+  mediaType,
+  isPaid,
+}: {
+  nicheId: string;
+  mediaType?: "video" | "carousel";
+  isPaid: boolean;
+}) {
+  const curated = getCuratedSources(nicheId);
+  const suggestions = (curated?.igHandles ?? []).slice(0, 4);
+  const typeLabel =
+    mediaType === "video"
+      ? "reels"
+      : mediaType === "carousel"
+        ? "carrosseis"
+        : "posts";
+  return (
+    <div
+      className="rdv-card"
+      style={{
+        padding: "20px 22px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 14,
+      }}
+    >
+      <div>
+        <h3
+          style={{
+            fontSize: 15,
+            fontWeight: 700,
+            lineHeight: 1.3,
+            marginBottom: 4,
+          }}
+        >
+          Sem {typeLabel} nas últimas 48h
+        </h3>
+        <p
+          style={{
+            fontSize: 12.5,
+            color: "var(--color-rdv-muted)",
+            lineHeight: 1.5,
+          }}
+        >
+          {isPaid
+            ? `Os perfis que você acompanha não publicaram ${typeLabel} no período. Adicione mais fontes pra ter mais material.`
+            : `O cron global ainda não pegou ${typeLabel} desse nicho. Cheque os perfis do catálogo direto:`}
+        </p>
+      </div>
+
+      {suggestions.length > 0 && (
+        <div style={{ display: "grid", gap: 6 }}>
+          {suggestions.map((s) => (
+            <a
+              key={s.handle}
+              href={`https://www.instagram.com/${s.handle}/`}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "8px 10px",
+                background: "var(--color-rdv-paper)",
+                border: "1px solid var(--color-rdv-line)",
+                color: "var(--color-rdv-ink)",
+                textDecoration: "none",
+                fontSize: 12.5,
+                transition: "border-color 0.1s",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.borderColor = "var(--color-rdv-rec)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.borderColor = "var(--color-rdv-line)")
+              }
+            >
+              <Instagram size={13} style={{ flexShrink: 0 }} />
+              <span style={{ flex: 1, minWidth: 0, fontWeight: 700 }}>
+                @{s.handle}
+              </span>
+              <span
+                style={{
+                  fontSize: 11,
+                  color: "var(--color-rdv-muted)",
+                  textOverflow: "ellipsis",
+                  overflow: "hidden",
+                  whiteSpace: "nowrap",
+                  maxWidth: 180,
+                }}
+              >
+                {s.label}
+              </span>
+              <ExternalLink size={11} style={{ opacity: 0.5, flexShrink: 0 }} />
+            </a>
+          ))}
+        </div>
+      )}
+
+      <Link
+        href="/app/settings"
+        className="rdv-btn rdv-btn-ghost"
+        style={{ padding: "8px 12px", fontSize: 10.5, alignSelf: "flex-start" }}
+      >
+        <Plus size={11} /> Adicionar handles
+      </Link>
+    </div>
+  );
+}
+
 function CompactPlaceholder({
   handle,
   caption,

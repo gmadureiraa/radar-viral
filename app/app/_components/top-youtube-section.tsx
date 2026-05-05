@@ -21,9 +21,11 @@ import {
   Loader2,
   Play,
   Youtube,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getJwtToken } from "@/lib/auth-client";
+import { getCuratedSources } from "@/lib/sources-curated";
 import type { VideoRow } from "@/app/api/data/videos/route";
 
 interface Props {
@@ -138,15 +140,7 @@ export function TopYouTubeSection({ nicheId, isPaid, limit = 3 }: Props) {
       ) : error ? (
         <EmptyCard msg={`Erro ao carregar YT (${error}).`} />
       ) : !items.length ? (
-        <EmptyCard
-          msg={
-            isPaid
-              ? "Sem vídeos novos nas últimas 48h. Cheque seus canais."
-              : "Sem fontes YT na curadoria desse nicho ainda. Adicione canais."
-          }
-          ctaHref="/app/settings"
-          ctaLabel="Adicionar canais →"
-        />
+        <RichEmptyYT nicheId={nicheId} isPaid={isPaid} />
       ) : (
         <YouTubeCarousel>
           {items.map((v) => (
@@ -366,6 +360,117 @@ function carouselArrowStyle(side: "left" | "right"): React.CSSProperties {
     zIndex: 2,
     boxShadow: "2px 2px 0 0 var(--color-rdv-rec)",
   };
+}
+
+/**
+ * Empty state YT com sugestões de canais curados do nicho.
+ * Substitui o card "vazio" simples — explicar PORQUE vazio +
+ * quem entra quando o cron rodar / quando user adicionar.
+ */
+function RichEmptyYT({
+  nicheId,
+  isPaid,
+}: {
+  nicheId: string;
+  isPaid: boolean;
+}) {
+  const curated = getCuratedSources(nicheId);
+  const suggestions = (curated?.youtubeChannels ?? []).slice(0, 4);
+  return (
+    <div
+      className="rdv-card"
+      style={{
+        padding: "20px 22px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 14,
+      }}
+    >
+      <div>
+        <h3
+          style={{
+            fontSize: 15,
+            fontWeight: 700,
+            lineHeight: 1.3,
+            marginBottom: 4,
+          }}
+        >
+          Sem vídeos novos nas últimas 48h
+        </h3>
+        <p
+          style={{
+            fontSize: 12.5,
+            color: "var(--color-rdv-muted)",
+            lineHeight: 1.5,
+          }}
+        >
+          {isPaid
+            ? "Os canais que você acompanha não publicaram. Adicione mais."
+            : "Canais do catálogo desse nicho — abra direto:"}
+        </p>
+      </div>
+
+      {suggestions.length > 0 && (
+        <div style={{ display: "grid", gap: 6 }}>
+          {suggestions.map((s) => {
+            const handle = s.handle.startsWith("@") ? s.handle : `@${s.handle}`;
+            return (
+              <a
+                key={handle}
+                href={`https://www.youtube.com/${handle}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "8px 10px",
+                  background: "var(--color-rdv-paper)",
+                  border: "1px solid var(--color-rdv-line)",
+                  color: "var(--color-rdv-ink)",
+                  textDecoration: "none",
+                  fontSize: 12.5,
+                  transition: "border-color 0.1s",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.borderColor = "var(--color-rdv-rec)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.borderColor = "var(--color-rdv-line)")
+                }
+              >
+                <Youtube size={13} style={{ flexShrink: 0 }} />
+                <span style={{ flex: 1, minWidth: 0, fontWeight: 700 }}>
+                  {handle}
+                </span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: "var(--color-rdv-muted)",
+                    textOverflow: "ellipsis",
+                    overflow: "hidden",
+                    whiteSpace: "nowrap",
+                    maxWidth: 200,
+                  }}
+                >
+                  {s.label}
+                </span>
+                <ExternalLink size={11} style={{ opacity: 0.5, flexShrink: 0 }} />
+              </a>
+            );
+          })}
+        </div>
+      )}
+
+      <Link
+        href="/app/settings"
+        className="rdv-btn rdv-btn-ghost"
+        style={{ padding: "8px 12px", fontSize: 10.5, alignSelf: "flex-start" }}
+      >
+        <Plus size={11} /> Adicionar canais
+      </Link>
+    </div>
+  );
 }
 
 function YouTubeCard({

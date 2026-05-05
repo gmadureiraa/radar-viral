@@ -79,8 +79,23 @@ function AppShell({ children }: { children: React.ReactNode }) {
     if (session.isPending) return;
     if (!session.data?.user) {
       router.replace("/?login=required");
+      return;
     }
-  }, [session.isPending, session.data?.user, router]);
+    // Force onboarding na primeira visita. Flag local persistente.
+    // Páginas exceto /app/onboarding redirecionam pra lá se flag não tá
+    // setada. Niche também é proxy: quem já tem niche setado é veterano.
+    if (typeof window !== "undefined" && pathname !== "/app/onboarding") {
+      try {
+        const done = localStorage.getItem("rdv_onboarding_done");
+        const hasNiche = localStorage.getItem("rdv_active_niche");
+        if (!done && !hasNiche) {
+          router.replace("/app/onboarding");
+        }
+      } catch {
+        /* localStorage bloqueado, ignora */
+      }
+    }
+  }, [session.isPending, session.data?.user, pathname, router]);
 
   if (session.isPending) {
     return (
@@ -101,6 +116,11 @@ function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   if (!session.data?.user) return null;
+
+  // Onboarding é tela cheia sem sidebar — primeira impressão limpa.
+  if (pathname === "/app/onboarding") {
+    return <>{children}</>;
+  }
 
   const isAdmin = isAdminEmail(session.data.user.email);
   // Admin entra no PRIMARY (debug). SECONDARY (Indique/Ajustes/Planos) sempre

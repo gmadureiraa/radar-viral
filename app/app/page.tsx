@@ -33,6 +33,7 @@ import { TopNewsSection } from "./_components/top-news-section";
 import { TopInstagramSection } from "./_components/top-instagram-section";
 import { TopYouTubeSection } from "./_components/top-youtube-section";
 import { LoopClosureSection } from "./_components/loop-closure-section";
+import { NichePillBar } from "./_components/niche-pill-bar";
 
 interface BriefHotTopic {
   topic: string;
@@ -299,10 +300,11 @@ export default function DashboardPage() {
         Olá{userFirstName ? <>, <em>{userFirstName}</em></> : <em></em>}.
         Aqui o que <em>importa</em> hoje.
       </h1>
-      <p style={{ fontSize: 14, color: "var(--color-rdv-muted)", marginBottom: 24 }}>
-        Brief diário cruzando Instagram, YouTube, notícias e newsletters
+      <p style={{ fontSize: 14, color: "var(--color-rdv-muted)", marginBottom: 12 }}>
+        Brief diário cruzando notícias, Instagram e YouTube
         {niche.label ? <> em <strong>{niche.label}</strong></> : null}.
       </p>
+      <NichePillBar />
 
       {sub && !sub.isPaid && (
         <div
