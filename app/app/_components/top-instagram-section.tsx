@@ -30,9 +30,30 @@ import type { InstagramPostRow } from "@/app/api/data/instagram/posts/route";
 interface Props {
   nicheId: string;
   isPaid: boolean;
+  /** "video" filtra reels, "carousel" filtra carrosseis, undefined = tudo */
+  mediaType?: "video" | "carousel";
+  /** Quantos itens mostrar (default 3) */
+  limit?: number;
+  /** Override de title/eyebrow pra customizar a seção */
+  title?: string;
+  eyebrow?: string;
 }
 
-export function TopInstagramSection({ nicheId, isPaid }: Props) {
+function isReel(p: InstagramPostRow): boolean {
+  return p.type === "Video" || Boolean(p.video_url);
+}
+function isCarousel(p: InstagramPostRow): boolean {
+  return (p.child_urls?.length ?? 0) > 1;
+}
+
+export function TopInstagramSection({
+  nicheId,
+  isPaid,
+  mediaType,
+  limit = 3,
+  title,
+  eyebrow,
+}: Props) {
   const [items, setItems] = useState<InstagramPostRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,9 +66,14 @@ export function TopInstagramSection({ nicheId, isPaid }: Props) {
       try {
         const jwt = await getJwtToken();
         const headers = jwt ? { Authorization: `Bearer ${jwt}` } : undefined;
+        // Quando filtramos por tipo, pegamos um pool maior pra ter chance
+        // de encontrar `limit` itens do tipo desejado depois do filtro.
+        const fetchLimit = mediaType ? Math.max(40, limit * 5) : limit;
         const [postsRes, savedRes] = await Promise.all([
           fetch(
-            `/api/data/instagram/posts?niche=${encodeURIComponent(nicheId)}&sort=top&hours=48&limit=3`,
+            `/api/data/instagram/posts?niche=${encodeURIComponent(
+              nicheId,
+            )}&sort=top&hours=48&limit=${fetchLimit}`,
             { headers },
           ),
           fetch("/api/data/saved?platform=instagram", { headers }),
@@ -57,7 +83,14 @@ export function TopInstagramSection({ nicheId, isPaid }: Props) {
           return;
         }
         const data = (await postsRes.json()) as { posts: InstagramPostRow[] };
-        if (!cancel) setItems(data.posts ?? []);
+        let posts = data.posts ?? [];
+        if (mediaType === "video") {
+          posts = posts.filter(isReel);
+        } else if (mediaType === "carousel") {
+          posts = posts.filter(isCarousel);
+        }
+        posts = posts.slice(0, limit);
+        if (!cancel) setItems(posts);
         if (savedRes.ok) {
           const sd = (await savedRes.json()) as { items: Array<{ ref_id: string }> };
           if (!cancel) setSaved(new Set((sd.items ?? []).map((i) => i.ref_id)));
@@ -71,7 +104,7 @@ export function TopInstagramSection({ nicheId, isPaid }: Props) {
     return () => {
       cancel = true;
     };
-  }, [nicheId]);
+  }, [nicheId, mediaType, limit]);
 
   const handleSave = useCallback(
     async (post: InstagramPostRow) => {
@@ -118,16 +151,34 @@ export function TopInstagramSection({ nicheId, isPaid }: Props) {
     [saved, nicheId],
   );
 
+  // Título/eyebrow dinâmico baseado em mediaType (com override via props).
+  const computedTitle =
+    title ??
+    (mediaType === "video"
+      ? `Top ${limit} Reels do dia`
+      : mediaType === "carousel"
+        ? `Top ${limit} Carrosseis do dia`
+        : `Top ${limit} Instagram do dia`);
+  const computedEyebrow =
+    eyebrow ??
+    (mediaType === "video"
+      ? "REELS EM ALTA"
+      : mediaType === "carousel"
+        ? "CARROSSEIS EM ALTA"
+        : "INSTAGRAM EM ALTA");
+  const computedSubtitle = isPaid
+    ? `Top ${limit} dos perfis que você acompanha`
+    : `Curadoria global · top ${limit} últimas 48h`;
+  const emptyMsg = isPaid
+    ? `Sem ${mediaType === "video" ? "reels" : mediaType === "carousel" ? "carrosseis" : "posts IG"} nas últimas 48h.`
+    : "Sem fontes IG na curadoria desse nicho ainda.";
+
   return (
     <section style={{ marginBottom: 36 }}>
       <SectionHeader
-        eyebrow="INSTAGRAM EM ALTA"
-        title="Top 3 Instagram do dia"
-        subtitle={
-          isPaid
-            ? "Top 3 dos perfis que você acompanha"
-            : "Curadoria global · top 3 últimas 48h"
-        }
+        eyebrow={computedEyebrow}
+        title={computedTitle}
+        subtitle={computedSubtitle}
         icon={<Instagram size={16} />}
       />
       {loading && !items.length ? (
@@ -138,11 +189,7 @@ export function TopInstagramSection({ nicheId, isPaid }: Props) {
         <EmptyCard msg={`Erro ao carregar IG (${error}).`} />
       ) : !items.length ? (
         <EmptyCard
-          msg={
-            isPaid
-              ? "Sem posts IG nas últimas 48h. Cheque suas fontes."
-              : "Sem fontes IG na curadoria desse nicho ainda. Adicione handles."
-          }
+          msg={emptyMsg}
           ctaHref="/app/settings"
           ctaLabel="Adicionar handles →"
         />
@@ -150,7 +197,7 @@ export function TopInstagramSection({ nicheId, isPaid }: Props) {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
             gap: 12,
           }}
         >

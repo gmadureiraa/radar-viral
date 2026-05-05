@@ -353,9 +353,6 @@ export default function DashboardPage() {
 
       {brief && (
         <>
-          {/* LOOP CLOSURE — recap do brief de ontem (só renderiza se houver D-1) */}
-          <LoopClosureSection yesterday={previousBrief} today={brief} />
-
           {/* ─── ROW 1: Resumo do Dia (esq) | Temas em Alta (dir) ─── */}
           <div className="rdv-dash-row">
             <div>
@@ -374,7 +371,7 @@ export default function DashboardPage() {
             <div>
               <SectionHeader
                 title="Temas em alta"
-                subtitle={`${brief.hot_topics?.length ?? 0} sinais · top 3`}
+                subtitle={`${brief.hot_topics?.length ?? 0} temas · top 3`}
                 icon={<Flame size={16} />}
                 eyebrow="TOP 3"
               />
@@ -397,12 +394,31 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* ─── ROW 2: Top 3 IG (esq) | Top 3 YouTube (dir) ─── */}
+          {/* ─── ROW 2: Top 4 Reels (esq) | Top 4 Carrosseis (dir) ─── */}
           {session.data?.user && (
             <div className="rdv-dash-row">
-              <TopInstagramSection nicheId={niche.id} isPaid={Boolean(sub?.isPaid)} />
-              <TopYouTubeSection nicheId={niche.id} isPaid={Boolean(sub?.isPaid)} />
+              <TopInstagramSection
+                nicheId={niche.id}
+                isPaid={Boolean(sub?.isPaid)}
+                mediaType="video"
+                limit={4}
+              />
+              <TopInstagramSection
+                nicheId={niche.id}
+                isPaid={Boolean(sub?.isPaid)}
+                mediaType="carousel"
+                limit={4}
+              />
             </div>
+          )}
+
+          {/* ─── ROW 3: Top YouTube full-width (4-6 vídeos numa linha) ─── */}
+          {session.data?.user && (
+            <TopYouTubeSection
+              nicheId={niche.id}
+              isPaid={Boolean(sub?.isPaid)}
+              limit={6}
+            />
           )}
 
           {/* CROSS-POLLINATION — ponte entre fontes */}
@@ -487,6 +503,11 @@ export default function DashboardPage() {
 
       {session.data?.user && (
         <TopNewsSection nicheId={niche.id} isPaid={Boolean(sub?.isPaid)} />
+      )}
+
+      {/* ─── ÚLTIMO ITEM DO DASHBOARD: "ontem virou" ─────────────────── */}
+      {brief && (
+        <LoopClosureSection yesterday={previousBrief} today={brief} />
       )}
     </main>
   );
@@ -1039,12 +1060,14 @@ function SectionHeader({
 }
 
 /**
- * Resumo do dia: card único que sintetiza o brief.
- *  - Stats line: nº temas + nº narrativas + sinal mais forte
- *  - Pega a narrativa #1 como "história principal" + 2 narrativas adjacentes
- *  - CTA pra navegar pras seções abaixo
+ * Resumo do dia: card único que sintetiza o brief com dados reais.
+ *  - Stats: nº temas + nº narrativas + ratio de continuação D-1 + sinal+
+ *  - História principal (narrativa #1) com manchetes reais (sources)
+ *  - Lista compacta das outras narrativas com contagem de sinais
+ *  - Tema mais quente (signal_count) destacado lateralmente
  *
- * Funciona até com brief incompleto (sem narrativas mostra só temas).
+ * Não inventa nada: só renderiza o que veio do brief. Se não tem
+ * narrativa, cai pro top topic + headlines.
  */
 function DayResumeCard({
   brief,
@@ -1063,7 +1086,11 @@ function DayResumeCard({
   const topNarrativeText =
     (topNarrative as { explanation?: string } | undefined)?.explanation ??
     topNarrative?.why;
-  const otherNarratives = (brief.narratives ?? []).slice(1, 3);
+  const topNarrativeSources =
+    ((topNarrative as { sources?: unknown[] } | undefined)?.sources as
+      | string[]
+      | undefined) ?? topNarrative?.signals;
+  const otherNarratives = (brief.narratives ?? []).slice(1, 4);
   const topTopic = brief.hot_topics?.[0];
 
   // Quantos temas continuam de ontem (recap)
@@ -1079,56 +1106,55 @@ function DayResumeCard({
     ).length;
   })();
 
+  // Tema mais quente (highest signal_count) — destacado lateralmente.
+  const hottestTopic = (brief.hot_topics ?? [])
+    .slice()
+    .sort((a, b) => (b.signal_count ?? 0) - (a.signal_count ?? 0))[0];
+
   return (
     <div className="rdv-card" style={{ padding: "18px 20px" }}>
-      {/* Stats em linha */}
+      {/* Stats: dados reais em destaque */}
       <div
-        className="rdv-mono"
         style={{
-          display: "flex",
-          gap: 16,
-          flexWrap: "wrap",
-          fontSize: 10,
-          letterSpacing: "0.14em",
-          textTransform: "uppercase",
-          color: "var(--color-rdv-muted)",
-          marginBottom: 14,
-          paddingBottom: 12,
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 0,
+          marginBottom: 16,
+          paddingBottom: 14,
           borderBottom: "1px dashed var(--color-rdv-line)",
         }}
       >
-        <span>
-          <strong style={{ color: "var(--color-rdv-rec)", fontWeight: 800 }}>
-            {numTopics}
-          </strong>{" "}
-          temas
-        </span>
-        <span>
-          <strong style={{ color: "var(--color-rdv-ink)", fontWeight: 800 }}>
-            {totalSignals}
-          </strong>{" "}
-          sinais
-        </span>
-        <span>
-          <strong style={{ color: "var(--color-rdv-ink)", fontWeight: 800 }}>
-            {numNarratives}
-          </strong>{" "}
-          narrativas
-        </span>
-        {continuingFromYesterday > 0 && (
-          <span>
-            <strong style={{ color: "var(--color-rdv-ink)", fontWeight: 800 }}>
-              {continuingFromYesterday}
-            </strong>{" "}
-            seguem de ontem
-          </span>
-        )}
+        <Stat label="Temas" value={numTopics} accent />
+        <Stat label="Sinais" value={totalSignals} />
+        <Stat label="Narrativas" value={numNarratives} />
+        <Stat
+          label="Seguem D-1"
+          value={continuingFromYesterday}
+          muted={continuingFromYesterday === 0}
+        />
       </div>
 
+      {/* História principal — narrativa #1 com headlines REAIS */}
       {topNarrative ? (
         <>
           <div className="rdv-eyebrow" style={{ marginBottom: 6 }}>
             HISTÓRIA PRINCIPAL
+            {hottestTopic && (
+              <span
+                className="rdv-mono"
+                style={{
+                  marginLeft: 8,
+                  fontSize: 9,
+                  padding: "2px 6px",
+                  background: "var(--color-rdv-rec)",
+                  color: "white",
+                  letterSpacing: "0.1em",
+                }}
+              >
+                {hottestTopic.signal_count}× {hottestTopic.topic.slice(0, 18)}
+                {hottestTopic.topic.length > 18 ? "…" : ""}
+              </span>
+            )}
           </div>
           <h3
             className="rdv-display"
@@ -1142,17 +1168,87 @@ function DayResumeCard({
                 fontSize: 13.5,
                 lineHeight: 1.55,
                 color: "var(--color-rdv-ink)",
-                marginBottom: 14,
+                marginBottom: 12,
               }}
             >
               {topNarrativeText}
             </p>
           )}
+
+          {/* Headlines reais */}
+          {Array.isArray(topNarrativeSources) && topNarrativeSources.length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <div
+                className="rdv-eyebrow"
+                style={{
+                  marginBottom: 6,
+                  color: "var(--color-rdv-muted)",
+                  fontSize: 9.5,
+                }}
+              >
+                MANCHETES QUE PUXARAM
+              </div>
+              <ul
+                style={{
+                  listStyle: "none",
+                  padding: 0,
+                  margin: 0,
+                  display: "grid",
+                  gap: 4,
+                }}
+              >
+                {topNarrativeSources.slice(0, 3).map((s, i) => (
+                  <li
+                    key={i}
+                    style={{
+                      fontSize: 11.5,
+                      lineHeight: 1.4,
+                      color: "var(--color-rdv-ink)",
+                      paddingLeft: 14,
+                      position: "relative",
+                    }}
+                  >
+                    <span
+                      style={{
+                        position: "absolute",
+                        left: 0,
+                        top: 6,
+                        width: 8,
+                        height: 1.5,
+                        background: "var(--color-rdv-ink)",
+                      }}
+                    />
+                    {typeof s === "string" ? s : JSON.stringify(s)}
+                  </li>
+                ))}
+                {topNarrativeSources.length > 3 && (
+                  <li
+                    className="rdv-mono"
+                    style={{
+                      fontSize: 9,
+                      color: "var(--color-rdv-muted)",
+                      paddingLeft: 14,
+                      letterSpacing: "0.1em",
+                      marginTop: 2,
+                    }}
+                  >
+                    + {topNarrativeSources.length - 3} outras
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
+
+          {/* Outras narrativas com contagem de sinais real */}
           {otherNarratives.length > 0 && (
             <>
               <div
                 className="rdv-eyebrow"
-                style={{ marginBottom: 6, color: "var(--color-rdv-muted)" }}
+                style={{
+                  marginBottom: 6,
+                  color: "var(--color-rdv-muted)",
+                  fontSize: 9.5,
+                }}
               >
                 TAMBÉM NO RADAR
               </div>
@@ -1166,30 +1262,55 @@ function DayResumeCard({
                   marginBottom: 14,
                 }}
               >
-                {otherNarratives.map((n, i) => (
-                  <li
-                    key={i}
-                    style={{
-                      fontSize: 12.5,
-                      lineHeight: 1.4,
-                      color: "var(--color-rdv-ink)",
-                      paddingLeft: 16,
-                      position: "relative",
-                    }}
-                  >
-                    <span
+                {otherNarratives.map((n, i) => {
+                  const nSources =
+                    ((n as { sources?: unknown[] }).sources as
+                      | string[]
+                      | undefined) ?? n.signals;
+                  const sourceCount = Array.isArray(nSources)
+                    ? nSources.length
+                    : 0;
+                  return (
+                    <li
+                      key={i}
                       style={{
-                        position: "absolute",
-                        left: 0,
-                        top: 7,
-                        width: 6,
-                        height: 6,
-                        background: "var(--color-rdv-rec)",
+                        fontSize: 12.5,
+                        lineHeight: 1.35,
+                        color: "var(--color-rdv-ink)",
+                        paddingLeft: 16,
+                        position: "relative",
+                        display: "flex",
+                        alignItems: "baseline",
+                        gap: 8,
+                        flexWrap: "wrap",
                       }}
-                    />
-                    <strong style={{ fontWeight: 700 }}>{n.title}</strong>
-                  </li>
-                ))}
+                    >
+                      <span
+                        style={{
+                          position: "absolute",
+                          left: 0,
+                          top: 7,
+                          width: 6,
+                          height: 6,
+                          background: "var(--color-rdv-rec)",
+                        }}
+                      />
+                      <strong style={{ fontWeight: 700 }}>{n.title}</strong>
+                      {sourceCount > 0 && (
+                        <span
+                          className="rdv-mono"
+                          style={{
+                            fontSize: 9.5,
+                            color: "var(--color-rdv-muted)",
+                            letterSpacing: "0.08em",
+                          }}
+                        >
+                          {sourceCount} fonte{sourceCount === 1 ? "" : "s"}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </>
           )}
@@ -1203,7 +1324,18 @@ function DayResumeCard({
             className="rdv-display"
             style={{ fontSize: 18, lineHeight: 1.2, marginBottom: 8 }}
           >
-            {topTopic.topic}
+            {topTopic.topic}{" "}
+            <span
+              className="rdv-mono"
+              style={{
+                fontSize: 11,
+                color: "var(--color-rdv-rec)",
+                marginLeft: 4,
+              }}
+            >
+              {topTopic.signal_count}× sinal
+              {topTopic.signal_count === 1 ? "" : "is"}
+            </span>
           </h3>
           <p
             style={{
@@ -1221,13 +1353,13 @@ function DayResumeCard({
       )}
 
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        <a
-          href="#narrativas"
+        <Link
+          href="/app/news"
           className="rdv-btn rdv-btn-ghost"
           style={{ padding: "5px 10px", fontSize: 9 }}
         >
-          <ArrowRight size={10} /> Ver tudo
-        </a>
+          <ExternalLink size={10} /> Ver fontes
+        </Link>
         {topNarrative && (
           <a
             href={svBridgeUrl(topNarrative.title, topNarrativeText)}
@@ -1239,6 +1371,62 @@ function DayResumeCard({
             <Layers size={10} /> Carrossel
           </a>
         )}
+        {topNarrative && (
+          <a
+            href={rvBridgeUrl(topNarrative.title)}
+            target="_blank"
+            rel="noreferrer"
+            className="rdv-btn rdv-btn-ghost"
+            style={{ padding: "5px 10px", fontSize: 9 }}
+          >
+            <Film size={10} /> Reel
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  accent,
+  muted,
+}: {
+  label: string;
+  value: number;
+  accent?: boolean;
+  muted?: boolean;
+}) {
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div
+        className="rdv-display"
+        style={{
+          fontSize: 28,
+          lineHeight: 1,
+          color: muted
+            ? "var(--color-rdv-muted)"
+            : accent
+              ? "var(--color-rdv-rec)"
+              : "var(--color-rdv-ink)",
+          fontWeight: 800,
+          letterSpacing: "-0.02em",
+        }}
+      >
+        {value}
+      </div>
+      <div
+        className="rdv-mono"
+        style={{
+          fontSize: 8.5,
+          letterSpacing: "0.16em",
+          textTransform: "uppercase",
+          color: "var(--color-rdv-muted)",
+          marginTop: 4,
+        }}
+      >
+        {label}
       </div>
     </div>
   );

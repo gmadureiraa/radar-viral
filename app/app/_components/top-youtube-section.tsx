@@ -29,9 +29,11 @@ import type { VideoRow } from "@/app/api/data/videos/route";
 interface Props {
   nicheId: string;
   isPaid: boolean;
+  /** Quantos vídeos mostrar (default 3) */
+  limit?: number;
 }
 
-export function TopYouTubeSection({ nicheId, isPaid }: Props) {
+export function TopYouTubeSection({ nicheId, isPaid, limit = 3 }: Props) {
   const [items, setItems] = useState<VideoRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +48,7 @@ export function TopYouTubeSection({ nicheId, isPaid }: Props) {
         const headers = jwt ? { Authorization: `Bearer ${jwt}` } : undefined;
         const [vidsRes, savedRes] = await Promise.all([
           fetch(
-            `/api/data/videos?niche=${encodeURIComponent(nicheId)}&hours=48&limit=3`,
+            `/api/data/videos?niche=${encodeURIComponent(nicheId)}&hours=48&limit=${limit}`,
             { headers },
           ),
           fetch("/api/data/saved?platform=youtube", { headers }),
@@ -70,7 +72,7 @@ export function TopYouTubeSection({ nicheId, isPaid }: Props) {
     return () => {
       cancel = true;
     };
-  }, [nicheId]);
+  }, [nicheId, limit]);
 
   const handleSave = useCallback(
     async (video: VideoRow) => {
@@ -121,11 +123,11 @@ export function TopYouTubeSection({ nicheId, isPaid }: Props) {
     <section style={{ marginBottom: 36 }}>
       <SectionHeader
         eyebrow="YOUTUBE EM ALTA"
-        title="Top 3 YouTube do dia"
+        title={`Top ${limit} YouTube do dia`}
         subtitle={
           isPaid
-            ? "Top 3 dos canais que você acompanha"
-            : "Curadoria global · top 3 últimas 48h"
+            ? `Top ${limit} dos canais que você acompanha`
+            : `Curadoria global · top ${limit} últimas 48h`
         }
         icon={<Youtube size={16} />}
       />
