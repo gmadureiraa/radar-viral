@@ -163,14 +163,16 @@ const POSTS_PER_NICHE_PER_DAY = 100;
 
 async function postsAddedToday(sql: SqlClient, nicheSlug: string): Promise<number> {
   try {
+    // Conta inserts reais na tabela do dia, por nicho. Antes contava
+    // SUM(posts_added) do cron_run_log sem filtro de nicho — o cap de
+    // 100/dia ficava GLOBAL em vez de per-niche, bloqueando crypto+ai
+    // quando marketing sozinho enchia a cota.
     const rows = (await sql`
-      SELECT COALESCE(SUM(posts_added), 0)::int AS n
-        FROM cron_run_log
-       WHERE cron_type = 'refresh-ig'
-         AND error_msg IS NULL
-         AND ran_at >= NOW() - INTERVAL '24 hours'
+      SELECT COUNT(*)::int AS n
+        FROM instagram_posts
+       WHERE niche = ${nicheSlug}
+         AND scraped_at >= NOW() - INTERVAL '24 hours'
     `) as Array<{ n: number }>;
-    void nicheSlug;
     return rows[0]?.n ?? 0;
   } catch {
     return 0;
