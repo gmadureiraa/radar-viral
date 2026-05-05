@@ -20,6 +20,7 @@ import {
   Search,
   Loader2,
   ExternalLink,
+  Instagram,
 } from "lucide-react";
 import { useActiveNiche } from "@/lib/niche-context";
 import { getJwtToken } from "@/lib/auth-client";
@@ -275,14 +276,28 @@ function SubTabs({
 
 function PostCard({ post, onClick }: { post: InstagramPostRow; onClick: () => void }) {
   const [slideIdx, setSlideIdx] = useState(0);
+  const [imgFailed, setImgFailed] = useState(false);
   const isCarousel = (post.child_urls?.length ?? 0) > 1;
   const isVideo = post.type === "Video" || Boolean(post.video_url);
   const score = igPostScore(post);
   const tier = igScoreTier(score);
-  const slides = isCarousel && post.child_urls
-    ? post.child_urls.filter((u): u is string => Boolean(u))
-    : [post.display_url ?? ""];
-  const currentSlide = slides[slideIdx] ?? post.display_url;
+
+  // Fallback chain — coleta TODAS as URLs disponíveis em ordem de preferência:
+  // 1) child_urls (carrossel — pula slides vazios)
+  // 2) display_url (foto principal)
+  // Filtra null/empty pra não inserir slide buraco.
+  const fallbackChain: string[] = [];
+  if (isCarousel && post.child_urls) {
+    for (const u of post.child_urls) {
+      if (u && typeof u === "string") fallbackChain.push(u);
+    }
+  }
+  if (post.display_url && !fallbackChain.includes(post.display_url)) {
+    fallbackChain.push(post.display_url);
+  }
+  // Se não tem nada no carrossel, fallback chain só tem display_url (ou vazio).
+  const slides = fallbackChain.length > 0 ? fallbackChain : [];
+  const currentSlide = slides[slideIdx] ?? slides[0];
 
   const fmt = (n: number): string => {
     if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -322,12 +337,33 @@ function PostCard({ post, onClick }: { post: InstagramPostRow; onClick: () => vo
           style={{
             position: "relative",
             aspectRatio: isVideo ? "9/16" : "4/5",
-            background: currentSlide
-              ? `url(${imgProxy(currentSlide)}) center/cover`
-              : "linear-gradient(135deg, #2a1a14, #1a1a1a)",
+            background: "var(--color-rdv-paper)",
             borderBottom: "1.5px solid var(--color-rdv-ink)",
+            overflow: "hidden",
           }}
         >
+          {currentSlide && !imgFailed ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={imgProxy(currentSlide)}
+              alt=""
+              loading="lazy"
+              onError={() => setImgFailed(true)}
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+              }}
+            />
+          ) : (
+            <PostPlaceholder
+              handle={post.account_handle}
+              caption={post.caption}
+              isVideo={isVideo}
+            />
+          )}
           {score >= 50 && (
             <span
               style={{
@@ -445,6 +481,96 @@ function PostCard({ post, onClick }: { post: InstagramPostRow; onClick: () => vo
           </div>
         </div>
       </button>
+    </div>
+  );
+}
+
+/**
+ * Placeholder estilizado pra quando a imagem do IG falha (URL signed
+ * expirou) ou não existe (post sem `display_url` no DB). Mostra @handle
+ * grande + ícone IG + snippet da caption — preserva legibilidade da grid
+ * sem virar "buraco preto".
+ */
+function PostPlaceholder({
+  handle,
+  caption,
+  isVideo,
+}: {
+  handle: string;
+  caption: string | null;
+  isVideo: boolean;
+}) {
+  const snippet = (caption ?? "").trim().slice(0, 80);
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        background:
+          "repeating-linear-gradient(135deg, var(--color-rdv-paper) 0 8px, var(--color-rdv-cream) 8px 14px)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "20px 14px",
+        textAlign: "center",
+        gap: 10,
+      }}
+    >
+      <div
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: "50%",
+          background: "var(--color-rdv-ink)",
+          color: "white",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {isVideo ? <Video size={22} /> : <Instagram size={22} />}
+      </div>
+      <div
+        className="rdv-mono"
+        style={{
+          fontSize: 12,
+          fontWeight: 800,
+          color: "var(--color-rdv-ink)",
+          letterSpacing: "0.04em",
+          wordBreak: "break-word",
+        }}
+      >
+        @{handle}
+      </div>
+      {snippet && (
+        <p
+          style={{
+            fontSize: 10.5,
+            color: "var(--color-rdv-muted)",
+            lineHeight: 1.35,
+            display: "-webkit-box",
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}
+        >
+          {snippet}
+          {caption && caption.length > 80 ? "…" : ""}
+        </p>
+      )}
+      <span
+        className="rdv-mono"
+        style={{
+          fontSize: 8,
+          letterSpacing: "0.18em",
+          color: "var(--color-rdv-muted)",
+          textTransform: "uppercase",
+          marginTop: 4,
+        }}
+      >
+        Preview indisponível
+      </span>
     </div>
   );
 }

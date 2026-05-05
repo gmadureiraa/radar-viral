@@ -356,29 +356,54 @@ export default function DashboardPage() {
           {/* LOOP CLOSURE — recap do brief de ontem (só renderiza se houver D-1) */}
           <LoopClosureSection yesterday={previousBrief} today={brief} />
 
-          {/* TEMAS EM ALTA — destaque do dashboard */}
-          <Section
-            title="Temas em alta"
-            subtitle={`Cruzamento news + IG · ${brief.hot_topics?.length ?? 0} sinais detectados`}
-            icon={<Flame size={16} />}
-          >
-            {!brief.hot_topics?.length ? (
-              <Empty msg="Sem sinais fortes hoje." />
-            ) : (
-              <div style={{ display: "grid", gap: 12 }}>
-                {(brief.hot_topics ?? []).slice(0, 6).map((t, i) => (
-                  <TopicCard
-                    key={i}
-                    topic={t}
-                    rank={i + 1}
-                    saved={savedTopics.has(topicRefId(t.topic))}
-                    onToggleSave={() => void handleSaveTopic(t)}
-                    velocity={computeVelocity(t, previousBrief)}
-                  />
-                ))}
-              </div>
-            )}
-          </Section>
+          {/* ─── ROW 1: Resumo do Dia (esq) | Temas em Alta (dir) ─── */}
+          <div className="rdv-dash-row">
+            <div>
+              <SectionHeader
+                title="Resumo do dia"
+                subtitle="Síntese das narrativas que a IA detectou hoje"
+                icon={<Activity size={16} />}
+                eyebrow="BRIEF"
+              />
+              <DayResumeCard
+                brief={brief}
+                previous={previousBrief}
+              />
+            </div>
+
+            <div>
+              <SectionHeader
+                title="Temas em alta"
+                subtitle={`${brief.hot_topics?.length ?? 0} sinais · top 3`}
+                icon={<Flame size={16} />}
+                eyebrow="TOP 3"
+              />
+              {!brief.hot_topics?.length ? (
+                <Empty msg="Sem sinais fortes hoje." />
+              ) : (
+                <div style={{ display: "grid", gap: 12 }}>
+                  {(brief.hot_topics ?? []).slice(0, 3).map((t, i) => (
+                    <TopicCard
+                      key={i}
+                      topic={t}
+                      rank={i + 1}
+                      saved={savedTopics.has(topicRefId(t.topic))}
+                      onToggleSave={() => void handleSaveTopic(t)}
+                      velocity={computeVelocity(t, previousBrief)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ─── ROW 2: Top 3 IG (esq) | Top 3 YouTube (dir) ─── */}
+          {session.data?.user && (
+            <div className="rdv-dash-row">
+              <TopInstagramSection nicheId={niche.id} isPaid={Boolean(sub?.isPaid)} />
+              <TopYouTubeSection nicheId={niche.id} isPaid={Boolean(sub?.isPaid)} />
+            </div>
+          )}
 
           {/* CROSS-POLLINATION — ponte entre fontes */}
           {brief.cross_pollination?.length ? (
@@ -434,7 +459,7 @@ export default function DashboardPage() {
         </>
       )}
 
-      {/* ─── DIVISOR ENTRE BRIEF IA E CONTEÚDO BRUTO ─────────────────── */}
+      {/* ─── DIVISOR + NOTÍCIAS DE ONTEM (mais pra baixo) ─────────────────── */}
       {session.data?.user && (
         <div
           style={{
@@ -461,11 +486,7 @@ export default function DashboardPage() {
       )}
 
       {session.data?.user && (
-        <>
-          <TopNewsSection nicheId={niche.id} isPaid={Boolean(sub?.isPaid)} />
-          <TopInstagramSection nicheId={niche.id} isPaid={Boolean(sub?.isPaid)} />
-          <TopYouTubeSection nicheId={niche.id} isPaid={Boolean(sub?.isPaid)} />
-        </>
+        <TopNewsSection nicheId={niche.id} isPaid={Boolean(sub?.isPaid)} />
       )}
     </main>
   );
@@ -951,6 +972,274 @@ function Empty({ msg }: { msg: string }) {
   return (
     <div className="rdv-card" style={{ padding: 20, textAlign: "center" }}>
       <p style={{ fontSize: 13, color: "var(--color-rdv-muted)" }}>{msg}</p>
+    </div>
+  );
+}
+
+/**
+ * Header reutilizável pras colunas das rows de cima do dashboard.
+ * Mesma vibe da Section, mas o eyebrow é prop pra dar identidade
+ * (TOP 3 / BRIEF) sem repetir markup.
+ */
+function SectionHeader({
+  title,
+  subtitle,
+  icon,
+  eyebrow,
+}: {
+  title: string;
+  subtitle?: string;
+  icon: React.ReactNode;
+  eyebrow?: string;
+}) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      {eyebrow && (
+        <div className="rdv-eyebrow" style={{ marginBottom: 6 }}>
+          <span className="rdv-rec-dot" /> {eyebrow}
+        </div>
+      )}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <div
+          className="rdv-display"
+          style={{
+            fontSize: 26,
+            lineHeight: 1,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <span style={{ color: "var(--color-rdv-rec)" }}>{icon}</span>
+          {title}
+        </div>
+        {subtitle && (
+          <span
+            className="rdv-mono"
+            style={{
+              fontSize: 10,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: "var(--color-rdv-muted)",
+            }}
+          >
+            {subtitle}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Resumo do dia: card único que sintetiza o brief.
+ *  - Stats line: nº temas + nº narrativas + sinal mais forte
+ *  - Pega a narrativa #1 como "história principal" + 2 narrativas adjacentes
+ *  - CTA pra navegar pras seções abaixo
+ *
+ * Funciona até com brief incompleto (sem narrativas mostra só temas).
+ */
+function DayResumeCard({
+  brief,
+  previous,
+}: {
+  brief: DailyBrief;
+  previous: DailyBrief | null;
+}) {
+  const totalSignals = (brief.hot_topics ?? []).reduce(
+    (acc, t) => acc + (t.signal_count ?? 0),
+    0,
+  );
+  const numTopics = brief.hot_topics?.length ?? 0;
+  const numNarratives = brief.narratives?.length ?? 0;
+  const topNarrative = brief.narratives?.[0];
+  const topNarrativeText =
+    (topNarrative as { explanation?: string } | undefined)?.explanation ??
+    topNarrative?.why;
+  const otherNarratives = (brief.narratives ?? []).slice(1, 3);
+  const topTopic = brief.hot_topics?.[0];
+
+  // Quantos temas continuam de ontem (recap)
+  const continuingFromYesterday = (() => {
+    if (!previous?.hot_topics?.length || !brief.hot_topics?.length) return 0;
+    const ySet = new Set(
+      previous.hot_topics.map((p) =>
+        p.topic.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(),
+      ),
+    );
+    return brief.hot_topics.filter((t) =>
+      ySet.has(t.topic.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()),
+    ).length;
+  })();
+
+  return (
+    <div className="rdv-card" style={{ padding: "18px 20px" }}>
+      {/* Stats em linha */}
+      <div
+        className="rdv-mono"
+        style={{
+          display: "flex",
+          gap: 16,
+          flexWrap: "wrap",
+          fontSize: 10,
+          letterSpacing: "0.14em",
+          textTransform: "uppercase",
+          color: "var(--color-rdv-muted)",
+          marginBottom: 14,
+          paddingBottom: 12,
+          borderBottom: "1px dashed var(--color-rdv-line)",
+        }}
+      >
+        <span>
+          <strong style={{ color: "var(--color-rdv-rec)", fontWeight: 800 }}>
+            {numTopics}
+          </strong>{" "}
+          temas
+        </span>
+        <span>
+          <strong style={{ color: "var(--color-rdv-ink)", fontWeight: 800 }}>
+            {totalSignals}
+          </strong>{" "}
+          sinais
+        </span>
+        <span>
+          <strong style={{ color: "var(--color-rdv-ink)", fontWeight: 800 }}>
+            {numNarratives}
+          </strong>{" "}
+          narrativas
+        </span>
+        {continuingFromYesterday > 0 && (
+          <span>
+            <strong style={{ color: "var(--color-rdv-ink)", fontWeight: 800 }}>
+              {continuingFromYesterday}
+            </strong>{" "}
+            seguem de ontem
+          </span>
+        )}
+      </div>
+
+      {topNarrative ? (
+        <>
+          <div className="rdv-eyebrow" style={{ marginBottom: 6 }}>
+            HISTÓRIA PRINCIPAL
+          </div>
+          <h3
+            className="rdv-display"
+            style={{ fontSize: 20, lineHeight: 1.2, marginBottom: 8 }}
+          >
+            {topNarrative.title}
+          </h3>
+          {topNarrativeText && (
+            <p
+              style={{
+                fontSize: 13.5,
+                lineHeight: 1.55,
+                color: "var(--color-rdv-ink)",
+                marginBottom: 14,
+              }}
+            >
+              {topNarrativeText}
+            </p>
+          )}
+          {otherNarratives.length > 0 && (
+            <>
+              <div
+                className="rdv-eyebrow"
+                style={{ marginBottom: 6, color: "var(--color-rdv-muted)" }}
+              >
+                TAMBÉM NO RADAR
+              </div>
+              <ul
+                style={{
+                  listStyle: "none",
+                  padding: 0,
+                  margin: 0,
+                  display: "grid",
+                  gap: 6,
+                  marginBottom: 14,
+                }}
+              >
+                {otherNarratives.map((n, i) => (
+                  <li
+                    key={i}
+                    style={{
+                      fontSize: 12.5,
+                      lineHeight: 1.4,
+                      color: "var(--color-rdv-ink)",
+                      paddingLeft: 16,
+                      position: "relative",
+                    }}
+                  >
+                    <span
+                      style={{
+                        position: "absolute",
+                        left: 0,
+                        top: 7,
+                        width: 6,
+                        height: 6,
+                        background: "var(--color-rdv-rec)",
+                      }}
+                    />
+                    <strong style={{ fontWeight: 700 }}>{n.title}</strong>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </>
+      ) : topTopic ? (
+        <>
+          <div className="rdv-eyebrow" style={{ marginBottom: 6 }}>
+            DESTAQUE DE HOJE
+          </div>
+          <h3
+            className="rdv-display"
+            style={{ fontSize: 18, lineHeight: 1.2, marginBottom: 8 }}
+          >
+            {topTopic.topic}
+          </h3>
+          <p
+            style={{
+              fontSize: 12.5,
+              lineHeight: 1.45,
+              color: "var(--color-rdv-muted)",
+              marginBottom: 14,
+            }}
+          >
+            {topTopic.source_summary}
+          </p>
+        </>
+      ) : (
+        <Empty msg="Nenhum sinal forte no radar hoje." />
+      )}
+
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <a
+          href="#narrativas"
+          className="rdv-btn rdv-btn-ghost"
+          style={{ padding: "5px 10px", fontSize: 9 }}
+        >
+          <ArrowRight size={10} /> Ver tudo
+        </a>
+        {topNarrative && (
+          <a
+            href={svBridgeUrl(topNarrative.title, topNarrativeText)}
+            target="_blank"
+            rel="noreferrer"
+            className="rdv-btn rdv-btn-ghost"
+            style={{ padding: "5px 10px", fontSize: 9 }}
+          >
+            <Layers size={10} /> Carrossel
+          </a>
+        )}
+      </div>
     </div>
   );
 }

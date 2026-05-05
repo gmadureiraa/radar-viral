@@ -20,6 +20,7 @@ import {
   Layers,
   Film,
   ArrowRight,
+  Video,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getJwtToken } from "@/lib/auth-client";
@@ -176,10 +177,17 @@ function InstagramCard({
   saved: boolean;
   onToggleSave: () => void;
 }) {
+  const [imgFailed, setImgFailed] = useState(false);
   const caption = (post.caption ?? "").trim();
   const truncated =
     caption.length > 80 ? caption.slice(0, 80).trimEnd() + "…" : caption;
   const igUrl = `https://www.instagram.com/p/${post.shortcode}/`;
+  // Fallback chain: display_url → 1º child_url. Filtra null.
+  const previewUrl =
+    post.display_url ||
+    post.child_urls?.find((u): u is string => typeof u === "string" && Boolean(u)) ||
+    null;
+  const isVideo = post.type === "Video" || Boolean(post.video_url);
   return (
     <div
       className="rdv-card"
@@ -200,17 +208,25 @@ function InstagramCard({
           background: "var(--color-rdv-paper)",
           position: "relative",
           borderBottom: "1.5px solid var(--color-rdv-ink)",
+          overflow: "hidden",
         }}
       >
-        {post.display_url ? (
+        {previewUrl && !imgFailed ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={imgProxy(post.display_url)}
+            src={imgProxy(previewUrl)}
             alt=""
             loading="lazy"
+            onError={() => setImgFailed(true)}
             style={{ width: "100%", height: "100%", objectFit: "cover" }}
           />
-        ) : null}
+        ) : (
+          <CompactPlaceholder
+            handle={post.account_handle}
+            caption={post.caption}
+            isVideo={isVideo}
+          />
+        )}
       </a>
       <div style={{ padding: "12px 14px", display: "grid", gap: 8 }}>
         <div
@@ -313,6 +329,82 @@ function rvBridgeFromIg(post: InstagramPostRow): string {
   return `https://reels-viral.vercel.app/?url=${encodeURIComponent(
     `https://www.instagram.com/p/${post.shortcode}/`,
   )}`;
+}
+
+/**
+ * Placeholder compacto pra grid do dashboard quando preview do IG falha.
+ * Mesma vibe da PostPlaceholder do /app/instagram mas otimizado pra
+ * tile menor (aspect-ratio 1:1).
+ */
+function CompactPlaceholder({
+  handle,
+  caption,
+  isVideo,
+}: {
+  handle: string;
+  caption: string | null;
+  isVideo: boolean;
+}) {
+  const snippet = (caption ?? "").trim().slice(0, 60);
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        background:
+          "repeating-linear-gradient(135deg, var(--color-rdv-paper) 0 8px, var(--color-rdv-cream) 8px 14px)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "16px 12px",
+        textAlign: "center",
+        gap: 8,
+      }}
+    >
+      <div
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: "50%",
+          background: "var(--color-rdv-ink)",
+          color: "white",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {isVideo ? <Video size={18} /> : <Instagram size={18} />}
+      </div>
+      <div
+        className="rdv-mono"
+        style={{
+          fontSize: 11,
+          fontWeight: 800,
+          color: "var(--color-rdv-ink)",
+          letterSpacing: "0.04em",
+          wordBreak: "break-word",
+        }}
+      >
+        @{handle}
+      </div>
+      {snippet && (
+        <p
+          style={{
+            fontSize: 9.5,
+            color: "var(--color-rdv-muted)",
+            lineHeight: 1.3,
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}
+        >
+          {snippet}
+        </p>
+      )}
+    </div>
+  );
 }
 
 function formatCount(n: number | null | undefined): string {

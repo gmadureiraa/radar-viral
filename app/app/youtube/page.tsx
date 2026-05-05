@@ -5,7 +5,14 @@
  */
 
 import { useEffect, useState } from "react";
-import { Youtube, RefreshCw, Loader2, ExternalLink } from "lucide-react";
+import {
+  Youtube,
+  RefreshCw,
+  Loader2,
+  ExternalLink,
+  Settings,
+} from "lucide-react";
+import Link from "next/link";
 import { useActiveNiche } from "@/lib/niche-context";
 import { getJwtToken } from "@/lib/auth-client";
 import { PostDetailModal, type PostDetail } from "@/components/post-detail-modal";
@@ -122,11 +129,60 @@ export default function YouTubePage() {
       )}
 
       {!loading && videos.length === 0 && (
-        <div className="rdv-card" style={{ padding: 32, textAlign: "center" }}>
-          <Youtube size={28} style={{ margin: "0 auto 12px", color: "var(--color-rdv-muted)" }} />
-          <p style={{ fontSize: 14, color: "var(--color-rdv-muted)" }}>
-            Nenhum vídeo no período. Cron de RSS roda na v1.
+        <div
+          className="rdv-card"
+          style={{
+            padding: "32px 28px",
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <Youtube
+            size={32}
+            style={{ color: "var(--color-rdv-muted)", marginBottom: 4 }}
+          />
+          <h2
+            className="rdv-display"
+            style={{ fontSize: 22, lineHeight: 1.15 }}
+          >
+            Sem vídeos novos em <em>{niche.label}</em>.
+          </h2>
+          <p
+            style={{
+              fontSize: 13.5,
+              color: "var(--color-rdv-muted)",
+              lineHeight: 1.5,
+              maxWidth: 480,
+            }}
+          >
+            Os canais curados desse nicho não publicaram nada nos últimos{" "}
+            <strong>{days} dias</strong>. Tenta ampliar a janela ou trocar de
+            nicho na sidebar.
           </p>
+          <div
+            style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}
+          >
+            {days < 30 && (
+              <button
+                type="button"
+                onClick={() => setDays(30)}
+                className="rdv-btn rdv-btn-ghost"
+                style={{ padding: "8px 14px", fontSize: 11 }}
+              >
+                <RefreshCw size={11} /> Ver últimos 30 dias
+              </button>
+            )}
+            <Link
+              href="/app/settings"
+              className="rdv-btn rdv-btn-ghost"
+              style={{ padding: "8px 14px", fontSize: 11 }}
+            >
+              <Settings size={11} /> Ajustar fontes
+            </Link>
+          </div>
         </div>
       )}
 
@@ -158,7 +214,16 @@ export default function YouTubePage() {
 }
 
 function VideoCard({ video, onClick }: { video: VideoRow; onClick: () => void }) {
+  const [imgFailed, setImgFailed] = useState(false);
   const ageLabel = timeAgo(video.published_at);
+  // RSS feed às vezes guarda thumb genérica (i1.ytimg/default.jpg).
+  // Como fallback robusto, monta hqdefault a partir do video_id quando
+  // a URL guardada falha — sempre existe pra qualquer vídeo público.
+  const fallbackThumb = video.video_id
+    ? `https://i.ytimg.com/vi/${video.video_id}/hqdefault.jpg`
+    : null;
+  const thumbToShow =
+    !imgFailed && video.thumbnail_url ? video.thumbnail_url : fallbackThumb;
   return (
     <button
       type="button"
@@ -176,13 +241,43 @@ function VideoCard({ video, onClick }: { video: VideoRow; onClick: () => void })
       <div
         style={{
           aspectRatio: "16/9",
-          background: video.thumbnail_url
-            ? `url(${video.thumbnail_url}) center/cover`
-            : "linear-gradient(135deg, #2a1a14, #1a1a1a)",
+          background: "var(--color-rdv-paper)",
           borderBottom: "1.5px solid var(--color-rdv-ink)",
           position: "relative",
+          overflow: "hidden",
         }}
       >
+        {thumbToShow ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={thumbToShow}
+            alt=""
+            loading="lazy"
+            onError={() => setImgFailed(true)}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background:
+                "repeating-linear-gradient(135deg, var(--color-rdv-paper) 0 8px, var(--color-rdv-cream) 8px 14px)",
+              color: "var(--color-rdv-muted)",
+            }}
+          >
+            <Youtube size={32} />
+          </div>
+        )}
         <span
           style={{
             position: "absolute",

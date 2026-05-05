@@ -49,12 +49,16 @@ export async function GET(req: Request) {
   const intervalQty = hours ?? days;
 
   // Resolve handles do nicho via catálogo curado.
+  // RSS do YT às vezes guarda handle em case diferente do que a gente
+  // cura (`@GaryVee` no curado vs `@garyvee` na resposta do feed).
+  // Lowercased pra match consistente — é o suficiente porque handles do
+  // YT são case-insensitive na URL real.
   let handleFilter: string[] | null = null;
   if (niche) {
     const curated = getCuratedSources(niche);
     if (curated) {
       handleFilter = curated.youtubeChannels.map((c) =>
-        c.handle.startsWith("@") ? c.handle : `@${c.handle}`,
+        (c.handle.startsWith("@") ? c.handle : `@${c.handle}`).toLowerCase(),
       );
     }
   }
@@ -68,7 +72,7 @@ export async function GET(req: Request) {
                  first_seen_at::text, last_seen_at::text
             FROM videos
            WHERE published_at >= NOW() - (${intervalQty} || ' ' || ${intervalUnit})::interval
-             AND channel_handle = ANY(${handleFilter})
+             AND lower(channel_handle) = ANY(${handleFilter})
            ORDER BY published_at DESC NULLS LAST
            LIMIT ${limit}
         `) as unknown as VideoRow[])
