@@ -296,8 +296,13 @@ async function refreshIgBundle(
             scraped_at = NOW()
         `;
         inserted++;
-      } catch {
-        /* dup ou schema issue */
+      } catch (insertErr) {
+        // Antes: silent catch. Agora propaga pra resultado.
+        return {
+          inserted,
+          status: "error",
+          errorMsg: `insert ${shortcode}: ${insertErr instanceof Error ? insertErr.message : String(insertErr)}`,
+        };
       }
     }
     return { inserted, status: "success" };
@@ -309,7 +314,7 @@ async function refreshIgBundle(
 async function refreshIg(sql: SqlClient): Promise<{
   inserted: number;
   bundles: number;
-  results: Array<{ slug: string; status: string; inserted: number }>;
+  results: Array<{ slug: string; status: string; inserted: number; errorMsg?: string }>;
 }> {
   const apifyKey = process.env.APIFY_API_KEY;
   if (!apifyKey) {
@@ -317,7 +322,7 @@ async function refreshIg(sql: SqlClient): Promise<{
   }
   const bundles = await listIgBundles(sql);
   const POOL = 3;
-  const results: Array<{ slug: string; status: string; inserted: number }> = [];
+  const results: Array<{ slug: string; status: string; inserted: number; errorMsg?: string }> = [];
   let totalInserted = 0;
 
   const startedAt = Date.now();
@@ -340,9 +345,19 @@ async function refreshIg(sql: SqlClient): Promise<{
       const b = batch[j];
       if (r.status === "fulfilled") {
         totalInserted += r.value.inserted;
-        results.push({ slug: b.slug, status: r.value.status, inserted: r.value.inserted });
+        results.push({
+          slug: b.slug,
+          status: r.value.status,
+          inserted: r.value.inserted,
+          errorMsg: r.value.errorMsg,
+        });
       } else {
-        results.push({ slug: b.slug, status: "rejected", inserted: 0 });
+        results.push({
+          slug: b.slug,
+          status: "rejected",
+          inserted: 0,
+          errorMsg: r.reason instanceof Error ? r.reason.message : String(r.reason),
+        });
       }
     }
     await new Promise((r) => setTimeout(r, 1000));
