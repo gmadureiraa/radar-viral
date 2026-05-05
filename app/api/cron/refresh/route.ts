@@ -354,31 +354,31 @@ async function refreshIg(sql: SqlClient): Promise<{
 // Lê tabela `videos` (canônica do v1). RSS YT formato:
 // https://www.youtube.com/feeds/videos.xml?channel_id=UC...
 
-async function refreshYoutube(sql: SqlClient): Promise<number> {
-  // Lista canais via tracked_sources(platform=youtube). Sem fallback hardcoded
-  // (v1 já populou ao longo dos meses; só refresh incremental é necessário).
-  let channels: Array<{ niche: string; channel_id: string; handle: string }> = [];
-  try {
-    channels = (await sql`
-      SELECT COALESCE(niche::text, '') AS niche,
-             COALESCE(metadata->>'channel_id', '') AS channel_id,
-             handle
-        FROM tracked_sources
-       WHERE platform = 'youtube'
-         AND COALESCE(active, TRUE) = TRUE
-         AND metadata->>'channel_id' IS NOT NULL
-    `) as Array<{ niche: string; channel_id: string; handle: string }>;
-  } catch {
-    return 0;
-  }
+async function refreshYoutube(
+  sql: SqlClient,
+): Promise<{ inserted: number; errors: string[] }> {
+  // Catálogo curado (lib/youtube-channels.ts) — importado do v1, 51 canais
+  // com channelId resolvido. Antes lia de tracked_sources mas só havia 3
+  // entries com metadata vazia, daí o feed parou sem aviso.
+  const { YOUTUBE_CHANNELS } = await import("@/lib/youtube-channels");
 
   let inserted = 0;
-  for (const ch of channels) {
-    if (!ch.channel_id) continue;
+  const errors: string[] = [];
+  for (const ch of YOUTUBE_CHANNELS) {
+    if (!ch.channelId) continue;
     try {
-      const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${ch.channel_id}`;
-      const res = await fetch(rssUrl, { signal: AbortSignal.timeout(15_000) });
-      if (!res.ok) continue;
+      const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${ch.channelId}`;
+      const res = await fetch(rssUrl, {
+        signal: AbortSignal.timeout(15_000),
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (compatible; RadarViral/1.0; +https://radar.kaleidos.com.br)",
+        },
+      });
+      if (!res.ok) {
+        errors.push(`${ch.handle}: HTTP ${res.status}`);
+        continue;
+      }
       const xml = await res.text();
       // Parser leve (regex). Pega até 10 entries mais recentes.
       const entries = xml.split(/<entry>/).slice(1, 11);
@@ -387,34 +387,57 @@ async function refreshYoutube(sql: SqlClient): Promise<number> {
         const titleMatch = /<title>([^<]+)<\/title>/.exec(e);
         const publishedMatch = /<published>([^<]+)<\/published>/.exec(e);
         const thumbMatch = /<media:thumbnail[^>]*url="([^"]+)"/.exec(e);
+        const linkMatch = /<link[^>]*href="([^"]+)"/.exec(e);
         if (!idMatch || !titleMatch) continue;
         const videoId = idMatch[1];
+        const link = linkMatch?.[1] ?? `https://www.youtube.com/watch?v=${videoId}`;
         try {
+          // Schema real da tabela videos:
+          // video_id, channel_id, channel_name, channel_handle, country, category,
+          // title, thumbnail_url, published_at, link, first_seen_at, last_seen_at
           await sql`
             INSERT INTO videos (
-              video_id, channel_id, channel_handle, niche, title,
-              thumbnail_url, posted_at, fetched_at
+              video_id, channel_id, channel_name, channel_handle,
+              title, thumbnail_url, published_at, link,
+              first_seen_at, last_seen_at
             )
             VALUES (
-              ${videoId}, ${ch.channel_id}, ${ch.handle}, ${ch.niche},
-              ${titleMatch[1]},
+              ${videoId}, ${ch.channelId}, ${ch.name}, ${ch.handle},
+              ${decodeXmlEntities(titleMatch[1])},
               ${thumbMatch?.[1] ?? null},
               ${publishedMatch?.[1] ?? new Date().toISOString()},
-              NOW()
+              ${link},
+              NOW(), NOW()
             )
-            ON CONFLICT (video_id) DO UPDATE SET fetched_at = NOW()
+            ON CONFLICT (video_id) DO UPDATE SET
+              last_seen_at = NOW(),
+              title = EXCLUDED.title,
+              thumbnail_url = COALESCE(EXCLUDED.thumbnail_url, videos.thumbnail_url)
           `;
           inserted++;
-        } catch {
-          /* skip — schema variations across deploys */
+        } catch (insertErr) {
+          errors.push(
+            `insert ${videoId}: ${insertErr instanceof Error ? insertErr.message : String(insertErr)}`,
+          );
         }
       }
-    } catch {
-      /* skip channel */
+    } catch (channelErr) {
+      errors.push(
+        `fetch ${ch.handle}: ${channelErr instanceof Error ? channelErr.message : String(channelErr)}`,
+      );
     }
     await new Promise((r) => setTimeout(r, 250));
   }
-  return inserted;
+  return { inserted, errors: errors.slice(0, 20) };
+}
+
+function decodeXmlEntities(s: string): string {
+  return s
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
 }
 
 // ─── Handler ─────────────────────────────────────────────────────────
@@ -487,11 +510,13 @@ export async function GET(req: Request) {
   // YouTube
   try {
     const y = await refreshYoutube(sql);
-    summary.youtube_inserted = y;
+    summary.youtube_inserted = y.inserted;
+    if (y.errors.length > 0) summary.youtube_partial_errors = y.errors;
     await logCronRun(sql, {
       cronType: "refresh-youtube",
-      postsAdded: y,
-      status: "success",
+      postsAdded: y.inserted,
+      status: y.errors.length > 0 && y.inserted === 0 ? "error" : "success",
+      errorMsg: y.errors.length > 0 ? y.errors.slice(0, 5).join(" | ").slice(0, 500) : undefined,
     });
   } catch (err) {
     summary.youtube_error = err instanceof Error ? err.message : String(err);
