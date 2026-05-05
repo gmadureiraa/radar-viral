@@ -1,5 +1,6 @@
 /**
- * GET /api/brief?niche=marketing — retorna o brief diário mais recente.
+ * GET /api/brief?niche=marketing — retorna o brief diário mais recente +
+ * o brief anterior (pra loop closure "ontem você viu, hoje virou").
  *
  * Reusa a tabela `daily_briefs` do Radar v1 (mesmo Neon DB). v2 não popula,
  * só lê — o cron `/api/cron/brief` da v1 continua sendo source of truth.
@@ -25,6 +26,18 @@ interface BriefRow {
   cost_usd: string | null;
 }
 
+function shape(r: BriefRow) {
+  return {
+    brief_date: r.brief_date,
+    narratives: r.narratives,
+    hot_topics: r.hot_topics,
+    carousel_ideas: r.carousel_ideas,
+    cross_pollination: r.cross_pollination,
+    model_used: r.model_used,
+    cost_usd: r.cost_usd ? Number(r.cost_usd) : null,
+  };
+}
+
 export async function GET(req: Request) {
   if (!dbUrl) return NextResponse.json({ error: "DB ausente" }, { status: 503 });
 
@@ -42,23 +55,15 @@ export async function GET(req: Request) {
         FROM daily_briefs
        WHERE niche = ${niche}
        ORDER BY brief_date DESC
-       LIMIT 1
+       LIMIT 2
     `) as unknown as BriefRow[];
 
     if (rows.length === 0) {
-      return NextResponse.json({ brief: null });
+      return NextResponse.json({ brief: null, previous: null });
     }
-    const r = rows[0];
     return NextResponse.json({
-      brief: {
-        brief_date: r.brief_date,
-        narratives: r.narratives,
-        hot_topics: r.hot_topics,
-        carousel_ideas: r.carousel_ideas,
-        cross_pollination: r.cross_pollination,
-        model_used: r.model_used,
-        cost_usd: r.cost_usd ? Number(r.cost_usd) : null,
-      },
+      brief: shape(rows[0]),
+      previous: rows[1] ? shape(rows[1]) : null,
     });
   } catch (err) {
     console.error("[/api/brief] failed:", err);

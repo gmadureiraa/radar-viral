@@ -30,6 +30,7 @@ import { useActiveNiche } from "@/lib/niche-context";
 import { TopNewsSection } from "./_components/top-news-section";
 import { TopInstagramSection } from "./_components/top-instagram-section";
 import { TopYouTubeSection } from "./_components/top-youtube-section";
+import { LoopClosureSection } from "./_components/loop-closure-section";
 
 interface BriefHotTopic {
   topic: string;
@@ -73,6 +74,7 @@ export default function DashboardPage() {
   const session = useNeonSession();
   const { active: niche } = useActiveNiche();
   const [brief, setBrief] = useState<DailyBrief | null>(null);
+  const [previousBrief, setPreviousBrief] = useState<DailyBrief | null>(null);
   const [sub, setSub] = useState<SubInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -95,8 +97,14 @@ export default function DashboardPage() {
           setError(`HTTP ${briefRes.status}`);
           return;
         }
-        const briefData = (await briefRes.json()) as { brief: DailyBrief | null };
-        if (!cancel) setBrief(briefData.brief);
+        const briefData = (await briefRes.json()) as {
+          brief: DailyBrief | null;
+          previous: DailyBrief | null;
+        };
+        if (!cancel) {
+          setBrief(briefData.brief);
+          setPreviousBrief(briefData.previous);
+        }
 
         if (subRes.ok) {
           const subData = (await subRes.json()) as SubInfo;
@@ -263,6 +271,9 @@ export default function DashboardPage() {
 
       {brief && (
         <>
+          {/* LOOP CLOSURE — recap do brief de ontem (só renderiza se houver D-1) */}
+          <LoopClosureSection yesterday={previousBrief} today={brief} />
+
           {/* TEMAS EM ALTA — destaque do dashboard */}
           <Section
             title="Temas em alta"
@@ -619,13 +630,13 @@ function PlanPill({ plan }: { plan: "free" | "pro" | "max" }) {
 /**
  * Helpers de bridge Radar → Sequência Viral / Reels Viral.
  *
- * SV (`/app/create/new?idea=...`) já consome `?idea=` e abre o editor com
- * brief preenchido. Concatenamos title + context num único campo textual
- * pra IA ter material rico de partida.
+ * SV (`/app/create/new?idea=...`) consome `?idea=` e abre o editor com brief
+ * preenchido. Concatenamos title + context num único campo textual pra IA
+ * ter material rico de partida.
  *
- * RV (`https://reels-viral.vercel.app/?topic=...`) ainda NÃO consome
- * `?topic=` na landing — fica como TODO pra implementar do lado RV.
- * Por enquanto o param vai no link mesmo assim pra evitar mexer em 2 repos.
+ * RV (`https://reels-viral.vercel.app/?topic=...`) consome `?topic=` na
+ * landing (app/page.tsx:76), salva em sessionStorage e redireciona pra /app
+ * — onde o form completo abre com tema pre-preenchido.
  */
 function svBridgeUrl(title: string, context?: string): string {
   const parts = [`Tema: ${title}`];
