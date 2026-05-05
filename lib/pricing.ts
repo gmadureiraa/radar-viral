@@ -97,15 +97,12 @@ export const PLANS_RDV = {
     /** Briefs IA ilimitados (sentinel -1) */
     briefsMonthlyCap: -1,
     aiChatAgent: true,
-    // TODO Stripe BR Dashboard:
-    //  1. Products → Create Product → "Radar Viral — Max"
-    //  2. Add Price R$ 149,00 BRL recurring monthly
-    //  3. Add Price R$ 1.430,40 BRL recurring yearly (-20%)
-    //  4. Copiar Product ID + Price IDs e setar:
-    //     - PLANS_RDV.max.stripeProductId
-    //     - env STRIPE_PRICE_ID_MAX_MONTHLY
-    //     - env STRIPE_PRICE_ID_MAX_YEARLY
-    stripeProductId: "prod_TODO_MAX" as string | null,
+    // Stripe BR Dashboard (criados via API em 2026-05-05):
+    //   Product:  prod_USgl567rf0sO0n
+    //   Monthly:  price_1TTlNfGhC9Vkt84YiwiE37mQ (R$ 149,00)
+    //   Yearly:   price_1TTlNnGhC9Vkt84YvSvE20Gx (R$ 1.430,40 / -20%)
+    // Env vars STRIPE_PRICE_ID_MAX_MONTHLY/YEARLY setados no Vercel prod.
+    stripeProductId: "prod_USgl567rf0sO0n" as string | null,
     features: [
       "✓ Tudo do Pro",
       "2 nichos simultâneos (Pro tem 1)",
