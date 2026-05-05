@@ -8,7 +8,6 @@ import {
   Instagram,
   Youtube,
   Newspaper,
-  Mail,
   BookmarkCheck,
   Settings as SettingsIcon,
   Shield,
@@ -38,12 +37,17 @@ interface NavItem {
  *   - PRIMARY (topo): features principais — Dashboard, IG, YT, News, Newsletters, Salvos
  *   - SECONDARY (rodapé, antes do user card): Indique e ganhe, Ajustes, Planos
  */
+/**
+ * Newsletters propositalmente fora do nav até o pipeline Gmail OAuth
+ * estar pronto. A tabela tem só subscription confirmations, não conteúdo
+ * real — feature ficaria parecendo quebrada. Página /app/newsletters
+ * continua acessível via URL direta (não 404), só sai do menu.
+ */
 const PRIMARY_NAV: NavItem[] = [
   { href: "/app", label: "Dashboard", icon: LayoutDashboard },
   { href: "/app/instagram", label: "Instagram", icon: Instagram },
   { href: "/app/youtube", label: "YouTube", icon: Youtube },
   { href: "/app/news", label: "Notícias", icon: Newspaper },
-  { href: "/app/newsletters", label: "Newsletters", icon: Mail },
   { href: "/app/saved", label: "Salvos", icon: BookmarkCheck },
 ];
 
