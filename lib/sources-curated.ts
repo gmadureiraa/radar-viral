@@ -43,16 +43,22 @@ export const CRYPTO_SOURCES: CuratedSources = {
     { handle: "vitalik.eth", label: "Vitalik Buterin" },
     { handle: "documentingbtc", label: "Documenting Bitcoin" },
   ],
+  // Handles alinhados com `lib/youtube-channels.ts` (fonte de verdade
+  // pro RSS scrape). Match no brief é case-insensitive.
   youtubeChannels: [
-    {
-      handle: "@investidor4.20",
-      channelId: "UC8oofAsuieQv3imZGvaUDOQ",
-      label: "Investidor 4.20 (Lucas Amendola)",
-    },
-    { handle: "@criptocafé", label: "Crypto Café" },
-    { handle: "@bankless", label: "Bankless" },
-    { handle: "@cointelegraph", label: "Cointelegraph" },
-    { handle: "@coinbureau", label: "Coin Bureau" },
+    { handle: "@CoinBureau", label: "Coin Bureau" },
+    { handle: "@Bankless", label: "Bankless" },
+    { handle: "@intothecryptoverse", label: "Into The Cryptoverse" },
+    { handle: "@AltcoinDaily", label: "Altcoin Daily" },
+    { handle: "@TheCryptoLark", label: "The Crypto Lark" },
+    { handle: "@CryptoBanter", label: "Crypto Banter" },
+    { handle: "@DigitalAssetNews", label: "Digital Asset News" },
+    { handle: "@BitBoyCrypto", label: "BitBoy Crypto" },
+    { handle: "@AndreiJikh", label: "Andrei Jikh" },
+    { handle: "@GrahamStephan", label: "Graham Stephan" },
+    { handle: "@AnthonyPompliano", label: "Anthony Pompliano" },
+    { handle: "@WhiteboardCrypto", label: "Whiteboard Crypto" },
+    { handle: "@augustobackes", label: "Augusto Backes (BR)" },
   ],
   newsRss: [
     { name: "Cointelegraph BR", url: "https://br.cointelegraph.com/rss", lang: "pt" },
@@ -91,12 +97,16 @@ export const MARKETING_SOURCES: CuratedSources = {
     { handle: "justinwelsh", label: "Justin Welsh · solopreneur" },
     { handle: "neilpatel", label: "Neil Patel · SEO" },
   ],
+  // Handles alinhados com `lib/youtube-channels.ts`. Brief lookup é
+  // case-insensitive.
   youtubeChannels: [
     { handle: "@AlexHormozi", label: "Alex Hormozi" },
-    { handle: "@GaryVee", label: "Gary Vaynerchuk" },
-    { handle: "@AliAbdaal", label: "Ali Abdaal" },
-    { handle: "@MarketingAgainsttheGrain", label: "Marketing Against the Grain" },
-    { handle: "@Founder", label: "Founder Magazine" },
+    { handle: "@garyvee", label: "GaryVee" },
+    { handle: "@neilpatel", label: "Neil Patel · SEO/growth" },
+    { handle: "@AhrefsCom", label: "Ahrefs" },
+    { handle: "@IncomeSchool", label: "Income School" },
+    { handle: "@fellipetoledo", label: "Fellipe Toledo (BR)" },
+    { handle: "@ColinandSamir", label: "Colin and Samir · creator econ" },
   ],
   newsRss: [
     { name: "Marketing Brew", url: "https://www.marketingbrew.com/feed", lang: "en" },
@@ -131,18 +141,20 @@ export const AI_SOURCES: CuratedSources = {
     { handle: "google", label: "Google · Gemini/AI" },
     { handle: "huggingface", label: "Hugging Face" },
   ],
+  // Handles alinhados com `lib/youtube-channels.ts` (que é a fonte de
+  // verdade pro RSS scrape). Match no brief é case-insensitive, então
+  // qualquer underscore/case-style passa, mas mantenho idêntico pro DX.
   youtubeChannels: [
-    // Canais que postam frequentemente (peso curadoria → frequência)
-    { handle: "@MatthewBerman", label: "Matthew Berman · daily AI" },
-    { handle: "@AIJason", label: "AI Jason · agentes/builds" },
-    { handle: "@1littlecoder", label: "1littlecoder · LLMs e tools" },
-    { handle: "@YannicKilcher", label: "Yannic Kilcher · papers" },
-    { handle: "@TwoMinutePapers", label: "Two Minute Papers" },
-    { handle: "@AIExplained-", label: "AI Explained" },
-    { handle: "@DavidOndrej", label: "David Ondrej · vibe coding" },
-    { handle: "@ColeMedin", label: "Cole Medin · AI builds" },
+    { handle: "@matthew_berman", label: "Matthew Berman · daily AI" },
+    { handle: "@AIJasonZ", label: "AI Jason · agentes/builds" },
+    { handle: "@aiexplained-official", label: "AI Explained" },
+    { handle: "@WesRoth", label: "Wes Roth · OpenAI/news" },
+    { handle: "@Fireship", label: "Fireship · dev/AI rapidinho" },
     { handle: "@lexfridman", label: "Lex Fridman · podcast" },
-    { handle: "@fireship", label: "Fireship · dev/AI rapidinho" },
+    { handle: "@DwarkeshPatel", label: "Dwarkesh Patel · entrevistas" },
+    { handle: "@AllAboutAI", label: "All About AI · tutoriais" },
+    { handle: "@samwitteveenai", label: "Sam Witteveen · LLM dev" },
+    { handle: "@mreflow", label: "Matt Wolfe · weekly roundup" },
   ],
   newsRss: [
     { name: "Hugging Face Blog", url: "https://huggingface.co/blog/feed.xml", lang: "en" },
