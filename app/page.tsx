@@ -69,19 +69,41 @@ function Landing() {
       } catch {
         /* ignore */
       }
-      // Libera o redirect depois de 5s — tempo suficiente pra cookie/cache
-      // serem invalidados e novos signins funcionarem normal.
-      const timer = setTimeout(() => {
-        setSuppressRedirect(false);
-        try {
-          window.sessionStorage.removeItem("rdv_suppress_redirect");
-        } catch {
-          /* ignore */
-        }
-      }, 5000);
-      return () => clearTimeout(timer);
     }
   }, [searchParams]);
+
+  // Timer SEMPRE roda quando suppressRedirect=true — independente de como
+  // o flag foi setado (URL param OU sessionStorage carregado no mount).
+  // Bug 2026-05-06: antes o setTimeout só rodava no useEffect que entrava
+  // via "?signed_out=1". Quando user voltava do OAuth callback do Google,
+  // o URL não tinha esse param → timeout nunca disparava → flag ficava
+  // preso → login não conseguia entrar no /app.
+  useEffect(() => {
+    if (!suppressRedirect) return;
+    const timer = setTimeout(() => {
+      setSuppressRedirect(false);
+      try {
+        window.sessionStorage.removeItem("rdv_suppress_redirect");
+      } catch {
+        /* ignore */
+      }
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [suppressRedirect]);
+
+  // Quando uma sessão NOVA chega (user logou após signout), libera redirect
+  // imediatamente — não esperar os 5s. Caso típico: user clicou "Sair",
+  // depois clicou "Entrar com Google" na mesma aba e voltou do callback.
+  useEffect(() => {
+    if (suppressRedirect && !session.isPending && session.data?.user) {
+      setSuppressRedirect(false);
+      try {
+        window.sessionStorage.removeItem("rdv_suppress_redirect");
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [suppressRedirect, session.isPending, session.data?.user]);
 
   useEffect(() => {
     if (suppressRedirect) return;
