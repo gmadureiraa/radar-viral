@@ -34,18 +34,61 @@ function Landing() {
   const searchParams = useSearchParams();
   const session = useNeonSession();
   const [showAuth, setShowAuth] = useState(false);
+  // Suprime auto-redirect pra /app logo após signOut. Sem essa guarda, se
+  // o cookie cross-origin demora pra invalidar (ou se o cache do Better
+  // Auth ainda tem a sessão antiga em alguma tab), o user clicava "Sair"
+  // e caía de volta no /app instantaneamente. Quando `?signed_out=1` está
+  // na URL ou flag em sessionStorage, ignoramos o redirect e limpamos a
+  // flag depois de 5s.
+  const [suppressRedirect, setSuppressRedirect] = useState(() => {
+    if (typeof window === "undefined") return false;
+    if (searchParams.get("signed_out") === "1") return true;
+    try {
+      return window.sessionStorage.getItem("rdv_suppress_redirect") === "1";
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     if (searchParams.get("login") === "required") {
       setShowAuth(true);
     }
+    if (searchParams.get("signed_out") === "1") {
+      setSuppressRedirect(true);
+      try {
+        window.sessionStorage.setItem("rdv_suppress_redirect", "1");
+      } catch {
+        /* ignore */
+      }
+      // Limpa o param da URL pra não ficar visível
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("signed_out");
+        window.history.replaceState({}, "", url.pathname + url.search);
+      } catch {
+        /* ignore */
+      }
+      // Libera o redirect depois de 5s — tempo suficiente pra cookie/cache
+      // serem invalidados e novos signins funcionarem normal.
+      const timer = setTimeout(() => {
+        setSuppressRedirect(false);
+        try {
+          window.sessionStorage.removeItem("rdv_suppress_redirect");
+        } catch {
+          /* ignore */
+        }
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
   }, [searchParams]);
 
   useEffect(() => {
+    if (suppressRedirect) return;
     if (!session.isPending && session.data?.user) {
       router.replace("/app");
     }
-  }, [session.isPending, session.data?.user, router]);
+  }, [session.isPending, session.data?.user, router, suppressRedirect]);
 
   return (
     <main style={{ minHeight: "100dvh", background: "var(--color-rdv-paper)" }}>
@@ -68,7 +111,10 @@ function Landing() {
           </span>
         </a>
         <nav style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          {session.data?.user ? (
+          {/* Quando `suppressRedirect` está ativo (recém saiu), priorizamos
+              o botão "Entrar" mesmo se a sessão ainda aparecer cacheada,
+              pra UX coerente com o sign-out que acabou de acontecer. */}
+          {session.data?.user && !suppressRedirect ? (
             <a href="/app" className="rdv-btn rdv-btn-rec" style={{ padding: "8px 14px", fontSize: 10 }}>
               Abrir app →
             </a>

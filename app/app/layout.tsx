@@ -19,8 +19,8 @@ import {
 } from "lucide-react";
 import {
   useNeonSession,
-  getAuthClient,
   isAuthConfigured,
+  signOutAndReset,
 } from "@/lib/auth-client";
 import { isAdminEmail } from "@/lib/admin-emails";
 import { NicheProvider, useActiveNiche } from "@/lib/niche-context";
@@ -273,14 +273,12 @@ function SidebarContent({
   onClose?: () => void;
 }) {
   const handleSignOut = async () => {
-    if (!isAuthConfigured()) return;
-    try {
-      const client = await getAuthClient();
-      await client.signOut();
-      window.location.href = "/";
-    } catch {
-      window.location.href = "/";
-    }
+    // signOutAndReset: aguarda /sign-out remoto, limpa cliente cacheado,
+    // localStorage (better-auth.*, rdv_*) e sessionStorage, depois faz
+    // window.location.replace("/?signed_out=1"). A flag suprime o
+    // auto-redirect da landing por ~5s, evitando que o user caia de volta
+    // em /app caso o cookie cross-origin demore pra invalidar.
+    await signOutAndReset();
   };
 
   // Helper que renderiza um link de nav. Reusado pelo PRIMARY e SECONDARY
