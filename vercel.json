@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     { "path": "/api/cron/refresh", "schedule": "0 9 * * *" },
-    { "path": "/api/cron/brief", "schedule": "0 10 * * *" },
+    { "path": "/api/cron/brief", "schedule": "50 10 * * *" },
     { "path": "/api/cron/scrape-tiktok", "schedule": "0 11 * * *" },
     { "path": "/api/cron/weekly-digest", "schedule": "0 10 * * 1" },
     { "path": "/api/cron/idle-5d", "schedule": "0 13 * * *" },
