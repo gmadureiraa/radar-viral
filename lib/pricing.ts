@@ -12,12 +12,16 @@
  *   Apify Instagram scrape: ~$0.000346 por post real
  *     6 IG handles × ~30 posts/run × 30 runs/mês = 5.400 posts
  *     5.400 × $0.000346 = ~$1.87/mês (cap em 6 handles ajuda muito)
+ *   Apify X scrape (apidojo/twitter-scraper-lite): ~$0.0004 por tweet real
+ *     8 X handles × 5 tweets/run × 30 runs/mês = 1.200 tweets
+ *     1.200 × $0.0004 = ~$0.48/mês (cap conservador em 5 tweets/handle/run
+ *     porque actor cobra por item retornado)
  *   YouTube RSS: $0 (RSS gratuito)
  *   News RSS: $0 (RSS gratuito)
  *   Gmail (newsletters): $0 (user-side, com cap quota free)
  *   Brief IA Gemini Flash: ~$0.0001 por brief × 30 briefs = ~$0.003/mês
  *   Storage Neon + compute Vercel: rateado, < $0.10/user
- *   TOTAL: ~$2 USD/mês ≈ R$ 10
+ *   TOTAL: ~$2,5 USD/mês ≈ R$ 12 (com X habilitado)
  *
  * Plano Pro R$ 49,90 → margem ~80% (R$ 40 líquido por user)
  * Stripe BR: ~3,99% + R$ 0,40 por transação = ~R$ 2,40 deduzido
@@ -56,6 +60,7 @@ export const PLANS_RDV = {
     rssNewsCap: 0,
     newslettersCap: 0,
     tiktokHandlesCap: 0,
+    twitterHandlesCap: 0,
     /** Briefs IA mensais (sentinel: -1 = ilimitado) */
     briefsMonthlyCap: 0,
     /** Agente IA chat por nicho (Pro only) */
@@ -84,6 +89,7 @@ export const PLANS_RDV = {
     rssNewsCap: 15,
     newslettersCap: 12,
     tiktokHandlesCap: 10,
+    twitterHandlesCap: 8,
     /** Briefs IA ilimitados (sentinel -1) */
     briefsMonthlyCap: -1,
     /** Agente IA chat conversacional por nicho */
@@ -94,8 +100,9 @@ export const PLANS_RDV = {
       "✓ Tudo do Free",
       "Radar individual: suas fontes, seu DB, cron diário próprio",
       "Até 2 nichos simultâneos",
-      "15 handles IG · 8 canais YouTube · 10 TikTok · 15 RSS · 12 newsletters",
+      "15 handles IG · 8 canais YouTube · 10 TikTok · 8 X/Twitter · 15 RSS · 12 newsletters",
       "TikTok scraping incluído",
+      "X/Twitter scraping incluído",
       "Brief IA ilimitado e personalizado pelo seu nicho",
       "Agente IA conversacional dedicado por nicho",
       "Suporte por email",
@@ -120,6 +127,7 @@ export const PLANS_RDV = {
     rssNewsCap: 15,
     newslettersCap: 12,
     tiktokHandlesCap: 10,
+    twitterHandlesCap: 8,
     briefsMonthlyCap: -1,
     aiChatAgent: true,
     // Stripe BR (criado em 2026-05-05, mantido pra subs grandfathered):
@@ -168,6 +176,8 @@ export function getPlanCapForPlatform(
       return p.newslettersCap;
     case "tiktok":
       return p.tiktokHandlesCap;
+    case "twitter":
+      return p.twitterHandlesCap;
     default:
       return null;
   }
