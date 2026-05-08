@@ -62,3 +62,63 @@ export const YOUTUBE_CHANNELS: YoutubeChannel[] = [
 export function getChannelsByNiche(niche: string): YoutubeChannel[] {
   return YOUTUBE_CHANNELS.filter((c) => c.niche === niche);
 }
+
+/**
+ * Resolve um handle YouTube (`@daniel`, `daniel`, `UC...`) pra channelId
+ * canônico (`UC...` 24 chars). Necessário pro cron individual: feeds RSS
+ * exigem channelId, e users normalmente colam só o @handle.
+ *
+ * Estratégia: scrape leve do `https://www.youtube.com/@${handle}` e parse
+ * do `"channelId":"UC..."` que aparece no bundle JS embedded. Sem dep de
+ * YouTube Data API (gratuito até 10k req/day mas exige API key).
+ *
+ * Retorna `null` se handle inválido ou page não carrega.
+ */
+export async function resolveYouTubeChannelId(
+  rawHandle: string,
+): Promise<{ channelId: string; channelName?: string } | null> {
+  const cleaned = rawHandle.replace(/^@/, "").trim();
+  if (!cleaned) return null;
+
+  // Já é channelId UC... 24 chars — só ratifica
+  if (/^UC[A-Za-z0-9_-]{22}$/.test(cleaned)) {
+    return { channelId: cleaned };
+  }
+
+  const url = `https://www.youtube.com/@${encodeURIComponent(cleaned)}`;
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (compatible; RadarViral/1.0; +https://radar.kaleidos.com.br)",
+        "Accept-Language": "en-US,en;q=0.9,pt-BR;q=0.8",
+      },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+
+    // Padrões de channelId no HTML do YouTube (em ordem de confiabilidade)
+    const m =
+      /"channelId":"(UC[A-Za-z0-9_-]{22})"/.exec(html) ??
+      /<link rel="canonical" href="https:\/\/www\.youtube\.com\/channel\/(UC[A-Za-z0-9_-]{22})/.exec(
+        html,
+      ) ??
+      /<meta itemprop="(?:channelId|identifier)" content="(UC[A-Za-z0-9_-]{22})"/.exec(
+        html,
+      );
+    if (!m) return null;
+
+    const nameMatch =
+      /<meta property="og:title" content="([^"]+)"/.exec(html) ??
+      /"title":"([^"]+)"/.exec(html);
+    const channelName = nameMatch?.[1]
+      ?.replace(/&amp;/g, "&")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+
+    return { channelId: m[1], channelName };
+  } catch {
+    return null;
+  }
+}
