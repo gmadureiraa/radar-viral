@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error:
-          process.env.NODE_ENV === "production"
+          process.env.VERCEL_ENV === "production"
             ? "Falha ao abrir portal."
             : err instanceof Error
               ? err.message

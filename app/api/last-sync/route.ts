@@ -50,7 +50,7 @@ export async function GET() {
   } catch (err) {
     console.error("[/api/last-sync] failed:", err);
     return NextResponse.json(
-      { error: process.env.NODE_ENV === "production" ? "Falha" : String(err) },
+      { error: process.env.VERCEL_ENV === "production" ? "Falha" : String(err) },
       { status: 500 },
     );
   }

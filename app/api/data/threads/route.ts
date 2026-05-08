@@ -78,7 +78,7 @@ export async function GET(req: Request) {
     }
     console.error("[/api/data/threads] failed:", err);
     return NextResponse.json(
-      { error: process.env.NODE_ENV === "production" ? "Falha" : String(err) },
+      { error: process.env.VERCEL_ENV === "production" ? "Falha" : String(err) },
       { status: 500 },
     );
   }

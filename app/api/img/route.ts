@@ -8,6 +8,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -39,6 +40,23 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "host not allowed" }, { status: 403 });
   }
 
+  // Rate limit por IP — endpoint público, principal vetor de DoS/bandwidth.
+  const ip =
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    req.headers.get("x-real-ip") ||
+    "unknown";
+  const rl = await rateLimit({
+    key: `img:${ip}`,
+    limit: 60,
+    windowMs: 60_000,
+  });
+  if (!rl.success) {
+    return NextResponse.json(
+      { error: "rate limited" },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSec ?? 60) } },
+    );
+  }
+
   try {
     const upstream = await fetch(url, {
       headers: {
@@ -48,12 +66,19 @@ export async function GET(req: Request) {
         Accept:
           "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
       },
+      // 8s teto — atacante manda URL lenta = worker fica pendurado.
+      signal: AbortSignal.timeout(8_000),
     });
     if (!upstream.ok) {
       return NextResponse.json(
         { error: `upstream ${upstream.status}` },
         { status: upstream.status },
       );
+    }
+    // Cap de tamanho (10MB) — fbcdn pode servir vídeo de minutos.
+    const len = Number(upstream.headers.get("content-length") ?? 0);
+    if (len > 10_000_000) {
+      return NextResponse.json({ error: "too large" }, { status: 413 });
     }
     const contentType = upstream.headers.get("content-type") ?? "image/jpeg";
     const buffer = Buffer.from(await upstream.arrayBuffer());
@@ -66,6 +91,12 @@ export async function GET(req: Request) {
       },
     });
   } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      return NextResponse.json(
+        { error: "upstream timeout" },
+        { status: 504 },
+      );
+    }
     console.error("[/api/img] failed:", err);
     return NextResponse.json({ error: "proxy failed" }, { status: 502 });
   }

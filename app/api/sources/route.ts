@@ -15,6 +15,7 @@ import { requireUserId } from "@/lib/server-auth";
 import { getSql, isDbConfigured } from "@/lib/db";
 import { getUserSubscription } from "@/lib/subscriptions";
 import { getPlanCapForPlatform, isPaidPlan } from "@/lib/pricing";
+import { resolveYouTubeChannelId } from "@/lib/youtube-channels";
 
 export const runtime = "nodejs";
 
@@ -178,13 +179,37 @@ export async function POST(req: Request) {
     }
   }
 
+  // ── YouTube handle → channelId resolution ────────────────────────────
+  // Cron individual lê `tracked_sources.handle` esperando formato `UC...`
+  // (channelId canônico). Se o user colou `@handle`, resolvemos antes do
+  // INSERT — senão o cron skipa silencioso e o user fica sem feed.
+  let resolvedHandle = body.handle;
+  let resolvedDisplayName = body.displayName ?? null;
+  if (body.platform === "youtube") {
+    const resolution = await resolveYouTubeChannelId(body.handle);
+    if (!resolution) {
+      return NextResponse.json(
+        {
+          error:
+            "Não consegui resolver esse canal do YouTube. Confirma o handle (ex: @canalexemplo) ou cole o channelId direto (UC...).",
+          resolutionFailed: true,
+        },
+        { status: 400 },
+      );
+    }
+    resolvedHandle = resolution.channelId;
+    if (!resolvedDisplayName && resolution.channelName) {
+      resolvedDisplayName = resolution.channelName;
+    }
+  }
+
   try {
     const rows = (await sql`
       INSERT INTO tracked_sources
         (platform, niche, handle, display_name, active, source, user_id, added_at)
       VALUES (
-        ${body.platform}, ${body.niche}, ${body.handle},
-        ${body.displayName ?? null},
+        ${body.platform}, ${body.niche}, ${resolvedHandle},
+        ${resolvedDisplayName},
         ${body.active ?? true},
         ${"manual"},
         ${auth.user.id},
@@ -199,7 +224,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error:
-          process.env.NODE_ENV === "production"
+          process.env.VERCEL_ENV === "production"
             ? "Falha ao criar fonte"
             : String(err),
       },
@@ -256,7 +281,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json(
       {
         error:
-          process.env.NODE_ENV === "production"
+          process.env.VERCEL_ENV === "production"
             ? "Falha ao atualizar"
             : String(err),
       },
