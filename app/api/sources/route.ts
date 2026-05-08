@@ -14,7 +14,11 @@ import { NextResponse } from "next/server";
 import { requireUserId } from "@/lib/server-auth";
 import { getSql, isDbConfigured } from "@/lib/db";
 import { getUserSubscription } from "@/lib/subscriptions";
-import { getPlanCapForPlatform, isPaidPlan } from "@/lib/pricing";
+import {
+  getPlanCapForPlatform,
+  getMaxTotalSources,
+  canEditHandle,
+} from "@/lib/pricing";
 import { resolveYouTubeChannelId } from "@/lib/youtube-channels";
 import { resolveSourceAvatar } from "@/lib/avatar-resolver";
 
@@ -131,21 +135,11 @@ export async function POST(req: Request) {
     );
   }
 
-  // ── Plan + quota guard ───────────────────────────────────────────────
-  // Free não pode adicionar fontes (custo Apify). Pro/Max têm caps por platform.
+  // ── Plan + quota guards ─────────────────────────────────────────────
+  // 2026-05-08: Free agora também adiciona (cap 3 total). Pro até 60.
   const sub = await getUserSubscription(auth.user.id);
-  if (!isPaidPlan(sub.plan)) {
-    return NextResponse.json(
-      {
-        error:
-          "Apenas no Pro ou Max. Faça upgrade pra adicionar fontes.",
-        upgradeRequired: true,
-      },
-      { status: 403 },
-    );
-  }
 
-  // Platforms exclusivas (ex: tiktok só no Max)
+  // Platforms exclusivas (ex: tiktok só no Max — vazio hoje, mantido pra fence)
   const minPlan = PLATFORM_MIN_PLAN[body.platform];
   if (minPlan === "max" && sub.plan !== "max") {
     return NextResponse.json(
@@ -160,19 +154,34 @@ export async function POST(req: Request) {
 
   const sql = getSql();
 
-  const cap = getPlanCapForPlatform(sub.plan, body.platform);
-  if (cap !== null && cap === 0) {
+  // Cap GLOBAL — soma de fontes em todas plataformas. É o cap real do user.
+  const totalCap = getMaxTotalSources(sub.plan);
+  const totalRows = (await sql`
+    SELECT COUNT(*)::int AS n
+      FROM tracked_sources
+     WHERE user_id = ${auth.user.id}
+  `) as unknown as Array<{ n: number }>;
+  const totalCurrent = totalRows[0]?.n ?? 0;
+  if (totalCurrent >= totalCap) {
+    const planLabel = sub.plan === "free" ? "Free" : sub.plan === "max" ? "Max" : "Pro";
     return NextResponse.json(
       {
-        error: `Plataforma ${body.platform} não disponível no seu plano (${sub.plan}).`,
+        error: sub.plan === "free"
+          ? `Limite Free atingido (${totalCurrent}/${totalCap} fontes). Remova alguma ou faça upgrade pro Pro.`
+          : `Limite ${planLabel} atingido (${totalCurrent}/${totalCap}). Remova fontes ou faça upgrade.`,
         capReached: true,
-        platform: body.platform,
-        cap: 0,
-        current: 0,
+        scope: "total",
+        cap: totalCap,
+        current: totalCurrent,
+        upgradeRequired: sub.plan === "free",
       },
       { status: 403 },
     );
   }
+
+  // Cap por platform (defesa: free tem 3 em cada, Pro 8-15. UI pode usar
+  // pra mostrar limite específico).
+  const cap = getPlanCapForPlatform(sub.plan, body.platform);
   if (cap !== null && cap > 0) {
     const countRows = (await sql`
       SELECT COUNT(*)::int AS n
@@ -182,10 +191,10 @@ export async function POST(req: Request) {
     `) as unknown as Array<{ n: number }>;
     const current = countRows[0]?.n ?? 0;
     if (current >= cap) {
-      const planLabel = sub.plan === "max" ? "Max" : "Pro";
+      const planLabel = sub.plan === "max" ? "Max" : sub.plan === "pro" ? "Pro" : "Free";
       return NextResponse.json(
         {
-          error: `Limite do plano ${planLabel} atingido pra ${body.platform} (${current}/${cap}). Remova alguma fonte pra adicionar outra.`,
+          error: `Limite ${planLabel} atingido pra ${body.platform} (${current}/${cap}). Remova alguma fonte pra adicionar outra.`,
           capReached: true,
           platform: body.platform,
           cap,
@@ -292,12 +301,28 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "id obrigatório" }, { status: 400 });
   }
 
+  // Free user não pode trocar handle (anti-rotação que queima Apify).
+  // displayName + active livres. Pro/Max liberados em tudo.
+  const subForPatch = await getUserSubscription(auth.user.id);
+  const handleEditAllowed = canEditHandle(subForPatch.plan);
+  const handleToWrite = handleEditAllowed ? body.handle ?? null : null;
+  if (!handleEditAllowed && body.handle) {
+    return NextResponse.json(
+      {
+        error: "Free não pode trocar handle. Pra mudar, exclua e adicione novo. Faça upgrade pro Pro pra editar livremente.",
+        handleEditBlocked: true,
+        upgradeRequired: true,
+      },
+      { status: 403 },
+    );
+  }
+
   const sql = getSql();
   await ensureAvatarColumn(sql);
   try {
     const rows = (await sql`
       UPDATE tracked_sources
-         SET handle       = COALESCE(${body.handle ?? null}, handle),
+         SET handle       = COALESCE(${handleToWrite}, handle),
              display_name = COALESCE(${body.displayName ?? null}, display_name),
              active       = COALESCE(${
                body.active === undefined ? null : body.active

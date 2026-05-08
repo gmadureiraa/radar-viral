@@ -31,9 +31,8 @@ interface MaxUserSource {
   niche_id: number | null;
   niche_slug: string | null;
   handle: string;
+  plan: "free" | "pro" | "max";
 }
-
-const POSTS_PER_HANDLE_PER_RUN = 12;
 
 // ─── Migration ───────────────────────────────────────────────────────
 
@@ -68,28 +67,28 @@ async function ensureTiktokPostsTable(sql: SqlClient): Promise<void> {
 // ─── Sources ─────────────────────────────────────────────────────────
 
 /**
- * Lê fontes TikTok dos users em planos pagos (Pro novo + Max grandfathered).
- * Renomeado de listMaxUserTiktokSources em 2026-05-08 quando Pro absorveu
- * TikTok scraping (era exclusivo Max antes).
+ * Lê fontes TikTok de TODOS os users (Free incluso desde 2026-05-08).
+ * Free tem cap de 3 fontes total e 3 posts/handle. Pro/Max 10/12.
  */
-async function listPaidUserTiktokSources(sql: SqlClient): Promise<MaxUserSource[]> {
+async function listIndividualUserTiktokSources(sql: SqlClient): Promise<MaxUserSource[]> {
   try {
     const rows = (await sql`
       SELECT ts.user_id,
              NULL::int AS niche_id,
              ts.niche::text AS niche_slug,
-             ts.handle
+             ts.handle,
+             COALESCE(usr.plan, 'free') AS plan
         FROM tracked_sources ts
-        INNER JOIN user_subscriptions_radar usr
+        LEFT JOIN user_subscriptions_radar usr
           ON usr.user_id = ts.user_id
+         AND usr.status = 'active'
        WHERE ts.platform = 'tiktok'
          AND COALESCE(ts.active, TRUE) = TRUE
-         AND usr.plan IN ('pro', 'max')
-         AND usr.status = 'active'
+         AND ts.user_id IS NOT NULL
     `) as Array<MaxUserSource>;
     return rows;
   } catch (err) {
-    console.warn("[scrape-tiktok] listPaidUserTiktokSources fallback:", err);
+    console.warn("[scrape-tiktok] listIndividualUserTiktokSources fallback:", err);
     return [];
   }
 }
@@ -99,8 +98,9 @@ async function listPaidUserTiktokSources(sql: SqlClient): Promise<MaxUserSource[
 async function realApifyCall(
   apifyKey: string,
   handles: string[],
+  postsPerHandle: number,
 ): Promise<Array<Record<string, unknown>>> {
-  // Custo real: ~\$0.01 × N profiles. Kill-switch via TIKTOK_SCRAPE_DISABLED.
+  // Custo real: ~$0.01 × N profiles. Kill-switch via TIKTOK_SCRAPE_DISABLED.
   const url = `https://api.apify.com/v2/acts/clockworks~tiktok-scraper/run-sync-get-dataset-items?token=${apifyKey}&timeout=180`;
   const profiles = handles.map((h) => `https://www.tiktok.com/@${h.replace(/^@/, "")}`);
   const res = await fetch(url, {
@@ -108,7 +108,7 @@ async function realApifyCall(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       profiles,
-      resultsPerPage: POSTS_PER_HANDLE_PER_RUN,
+      resultsPerPage: postsPerHandle,
       shouldDownloadVideos: false,
       shouldDownloadCovers: false,
     }),
@@ -200,15 +200,15 @@ export async function GET(req: Request) {
     );
   }
 
-  const sources = await listPaidUserTiktokSources(sql);
+  const sources = await listIndividualUserTiktokSources(sql);
   const killSwitchOn = process.env.TIKTOK_SCRAPE_DISABLED === "true";
 
   if (auth.isDry) {
     return jsonResponse({
       ok: true,
       dry: true,
-      paid_user_handles: sources.length,
-      sample: sources.slice(0, 5).map((s) => ({ user: s.user_id, handle: s.handle, niche: s.niche_slug })),
+      user_handles: sources.length,
+      sample: sources.slice(0, 5).map((s) => ({ user: s.user_id, handle: s.handle, niche: s.niche_slug, plan: s.plan })),
       kill_switch: killSwitchOn ? "ENABLED — TIKTOK_SCRAPE_DISABLED=true" : "off",
       apify_call: killSwitchOn ? "WILL_SKIP" : "ENABLED",
       duration_ms: Date.now() - t0,
@@ -219,11 +219,11 @@ export async function GET(req: Request) {
     await logCronRun(sql, {
       cronType: "scrape-tiktok",
       status: "skipped",
-      errorMsg: "no_paid_users_with_tiktok_sources",
+      errorMsg: "no_users_with_tiktok_sources",
     });
     return jsonResponse({
       ok: true,
-      skipped: "Nenhum user Pro/Max com tracked_sources(platform=tiktok)",
+      skipped: "Nenhum user com tracked_sources(platform=tiktok)",
       duration_ms: Date.now() - t0,
     });
   }
@@ -272,8 +272,10 @@ export async function GET(req: Request) {
 
   for (const [userId, userSources] of byUser) {
     const handles = userSources.map((s) => s.handle);
+    const userPlan = userSources[0].plan;
+    const postsPerHandle = userPlan === "free" ? 3 : 12;
     try {
-      const data = await realApifyCall(apifyKey, handles);
+      const data = await realApifyCall(apifyKey, handles, postsPerHandle);
 
       let inserted = 0;
       for (const post of data) {

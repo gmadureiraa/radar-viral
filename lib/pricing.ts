@@ -55,27 +55,41 @@ export const PLANS_RDV = {
     name: "Free",
     priceMonthly: 0,
     priceAnnual: 0,
-    /** Free vê o radar global (popped from shared sources). Sem cron individual. */
-    individualCron: false,
-    maxNiches: 0,
-    igHandlesCap: 0,
-    ytChannelsCap: 0,
-    rssNewsCap: 0,
-    newslettersCap: 0,
-    tiktokHandlesCap: 0,
-    threadsHandlesCap: 0,
-    twitterHandlesCap: 0,
+    /**
+     * Decisão 2026-05-08: Free também tem cron individual. Trade-off:
+     * cap baixo de fontes (3 totais) + cap baixo de posts/handle (3) +
+     * PATCH bloqueado em handle (anti-troca infinita). Custo Apify
+     * estimado: 3 fontes × 3 posts × 30 runs × $0.005 = ~$1.35/free/mês.
+     * Aceitável pra atrair onboarding e demonstrar valor real do produto.
+     */
+    individualCron: true,
+    maxNiches: 1,
+    /** Cap GLOBAL — total de fontes em qualquer plataforma combinada. */
+    maxTotalSources: 3,
+    /** Caps per-platform (defesa em profundidade — UI cap global é o real). */
+    igHandlesCap: 3,
+    ytChannelsCap: 3,
+    rssNewsCap: 3,
+    newslettersCap: 3,
+    tiktokHandlesCap: 3,
+    threadsHandlesCap: 3,
+    twitterHandlesCap: 3,
+    /** Posts coletados por handle/run no cron Apify (TikTok/Threads). */
+    postsPerHandleApify: 3,
     /** Briefs IA mensais (sentinel: -1 = ilimitado) */
     briefsMonthlyCap: 0,
     /** Agente IA chat por nicho (Pro only) */
     aiChatAgent: false,
+    /** Free pode trocar handle de fonte? false = anti-rotação Apify. */
+    canEditHandle: false,
     /** Stripe Product ID (placeholder por enquanto, inline price_data via product_data) */
     stripeProductId: null as string | null,
     /** Hidden da UI /app/precos? Free é sempre visível. */
     hidden: false,
     features: [
-      "Radar global compartilhado (Brief IA + Temas)",
-      "Acesso à curadoria de fontes do teu nicho (read-only)",
+      "3 fontes próprias (qualquer plataforma)",
+      "Cron diário das suas fontes",
+      "Brief IA semanal",
       "Salvar/bookmark cross-platform",
       "Bridges com Sequência Viral e Reels Viral",
     ],
@@ -88,6 +102,8 @@ export const PLANS_RDV = {
     /** Pro ativa cron individual: tracked_sources com user_id próprio. */
     individualCron: true,
     maxNiches: 2,
+    /** Cap GLOBAL — soma das fontes em todas plataformas. */
+    maxTotalSources: 60,
     igHandlesCap: 15,
     ytChannelsCap: 8,
     rssNewsCap: 15,
@@ -95,6 +111,10 @@ export const PLANS_RDV = {
     tiktokHandlesCap: 10,
     threadsHandlesCap: 10,
     twitterHandlesCap: 8,
+    /** Posts coletados por handle/run (Apify TikTok/Threads). */
+    postsPerHandleApify: 12,
+    /** Pro pode trocar handle livremente. */
+    canEditHandle: true,
     /** Briefs IA ilimitados (sentinel -1) */
     briefsMonthlyCap: -1,
     /** Agente IA chat conversacional por nicho */
@@ -128,6 +148,7 @@ export const PLANS_RDV = {
     priceAnchor: 24900,
     individualCron: true,
     maxNiches: 2,
+    maxTotalSources: 100,
     igHandlesCap: 15,
     ytChannelsCap: 8,
     rssNewsCap: 15,
@@ -135,6 +156,8 @@ export const PLANS_RDV = {
     tiktokHandlesCap: 10,
     threadsHandlesCap: 10,
     twitterHandlesCap: 8,
+    postsPerHandleApify: 12,
+    canEditHandle: true,
     briefsMonthlyCap: -1,
     aiChatAgent: true,
     // Stripe BR (criado em 2026-05-05, mantido pra subs grandfathered):
@@ -196,4 +219,19 @@ export function getPlanCapForPlatform(
 export function usageLimitForPaidPlan(plan: PlanId): number {
   const cap = PLANS_RDV[plan].briefsMonthlyCap;
   return cap < 0 ? Infinity : cap;
+}
+
+/** Cap GLOBAL de fontes (soma todas plataformas) por plano. */
+export function getMaxTotalSources(plan: PlanId): number {
+  return PLANS_RDV[plan].maxTotalSources;
+}
+
+/** Posts/handle/run em scrapes Apify (TikTok/Threads/IG). Limita custo. */
+export function getPostsPerHandleApify(plan: PlanId): number {
+  return PLANS_RDV[plan].postsPerHandleApify;
+}
+
+/** Free user não pode trocar handle (anti-rotação que queima Apify). */
+export function canEditHandle(plan: PlanId): boolean {
+  return PLANS_RDV[plan].canEditHandle;
 }

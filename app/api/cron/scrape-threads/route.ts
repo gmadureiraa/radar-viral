@@ -37,9 +37,8 @@ interface PaidUserSource {
   niche_id: number | null;
   niche_slug: string | null;
   handle: string;
+  plan: "free" | "pro" | "max";
 }
-
-const POSTS_PER_HANDLE_PER_RUN = 12;
 
 // ─── Migration ───────────────────────────────────────────────────────
 
@@ -68,24 +67,27 @@ async function ensureThreadsPostsTable(sql: SqlClient): Promise<void> {
 
 // ─── Sources ─────────────────────────────────────────────────────────
 
-async function listPaidUserThreadsSources(sql: SqlClient): Promise<PaidUserSource[]> {
+async function listIndividualUserThreadsSources(sql: SqlClient): Promise<PaidUserSource[]> {
+  // 2026-05-08: Free agora tem cron individual (3 fontes, 3 posts/handle).
+  // Pro/Max: 60/100 fontes, 12 posts/handle. Sem subscription = free default.
   try {
     const rows = (await sql`
       SELECT ts.user_id,
              NULL::int AS niche_id,
              ts.niche::text AS niche_slug,
-             ts.handle
+             ts.handle,
+             COALESCE(usr.plan, 'free') AS plan
         FROM tracked_sources ts
-        INNER JOIN user_subscriptions_radar usr
+        LEFT JOIN user_subscriptions_radar usr
           ON usr.user_id = ts.user_id
+         AND usr.status = 'active'
        WHERE ts.platform = 'threads'
          AND COALESCE(ts.active, TRUE) = TRUE
-         AND usr.plan IN ('pro', 'max')
-         AND usr.status = 'active'
+         AND ts.user_id IS NOT NULL
     `) as Array<PaidUserSource>;
     return rows;
   } catch (err) {
-    console.warn("[scrape-threads] listPaidUserThreadsSources fallback:", err);
+    console.warn("[scrape-threads] listIndividualUserThreadsSources fallback:", err);
     return [];
   }
 }
@@ -95,11 +97,12 @@ async function listPaidUserThreadsSources(sql: SqlClient): Promise<PaidUserSourc
 async function _realApifyCall(
   apifyKey: string,
   handles: string[],
+  postsPerHandle: number,
 ): Promise<Array<Record<string, unknown>>> {
   // Actor: automation-lab/threads-scraper — validado em prod 2026-05-08.
   // Custo: $0.02 start (FREE) + $0.005 por profile + $0.005 por post.
-  //   10 handles × 12 posts = $0.02 + $0.05 + $0.60 = $0.67/run
-  //   30 runs/mês = ~$20/user full-load. (estimativa pricing.ts atualizada)
+  // Free user: 3 fontes × 3 posts = $0.02 + $0.015 + $0.045 = $0.08/run
+  // Pro user: 10 fontes × 12 posts = $0.67/run, ~$20/user/mês full-load.
   // Kill-switch: THREADS_SCRAPE_DISABLED=true aborta sem chamar Apify.
   if (process.env.THREADS_SCRAPE_DISABLED === "true") {
     console.warn("[scrape-threads] kill-switch THREADS_SCRAPE_DISABLED=true, abortando");
@@ -113,7 +116,7 @@ async function _realApifyCall(
     body: JSON.stringify({
       mode: "posts",
       usernames,
-      maxPosts: POSTS_PER_HANDLE_PER_RUN,
+      maxPosts: postsPerHandle,
     }),
     signal: AbortSignal.timeout(240_000),
   });
@@ -234,15 +237,15 @@ export async function GET(req: Request) {
     );
   }
 
-  const sources = await listPaidUserThreadsSources(sql);
+  const sources = await listIndividualUserThreadsSources(sql);
 
   if (auth.isDry) {
     return jsonResponse({
       ok: true,
       dry: true,
-      paid_user_handles: sources.length,
-      sample: sources.slice(0, 5).map((s) => ({ user: s.user_id, handle: s.handle, niche: s.niche_slug })),
-      apify_call: "DISABLED — descomentar _realApifyCall em prod",
+      user_handles: sources.length,
+      sample: sources.slice(0, 5).map((s) => ({ user: s.user_id, handle: s.handle, niche: s.niche_slug, plan: s.plan })),
+      apify_call: "ACTIVE (kill-switch: THREADS_SCRAPE_DISABLED)",
       duration_ms: Date.now() - t0,
     });
   }
@@ -251,11 +254,11 @@ export async function GET(req: Request) {
     await logCronRun(sql, {
       cronType: "scrape-threads",
       status: "skipped",
-      errorMsg: "no_paid_users_with_threads_sources",
+      errorMsg: "no_users_with_threads_sources",
     });
     return jsonResponse({
       ok: true,
-      skipped: "Nenhum user Pro/Max com tracked_sources(platform=threads)",
+      skipped: "Nenhum user com tracked_sources(platform=threads)",
       duration_ms: Date.now() - t0,
     });
   }
@@ -285,10 +288,15 @@ export async function GET(req: Request) {
 
   for (const [userId, userSources] of byUser) {
     const handles = userSources.map((s) => s.handle);
+    // Posts/handle por plano do user (free=3, pro=12, max=12). Cap pro
+    // free é defesa contra esgotar token Apify com fontes de baixo
+    // engajamento.
+    const userPlan = userSources[0].plan;
+    const postsPerHandle = userPlan === "free" ? 3 : 12;
     try {
       // Apify call REAL ativada (2026-05-08). Kill-switch:
       // THREADS_SCRAPE_DISABLED=true em env aborta sem chamar Apify.
-      const data = await _realApifyCall(apifyKey, handles);
+      const data = await _realApifyCall(apifyKey, handles, postsPerHandle);
 
       let inserted = 0;
       for (const post of data) {

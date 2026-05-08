@@ -107,6 +107,12 @@ const ALL_CATEGORIES: Category[] = [
   "newsletter",
 ];
 
+interface SubInfo {
+  plan: "free" | "pro" | "max";
+  status: string;
+  isPaid: boolean;
+}
+
 export default function SettingsPage() {
   const session = useNeonSession();
   const { active } = useActiveNiche();
@@ -115,6 +121,12 @@ export default function SettingsPage() {
   const [loadingMine, setLoadingMine] = useState(false);
   const [editing, setEditing] = useState<UserSourceRow | null>(null);
   const [adding, setAdding] = useState(false);
+  const [sub, setSub] = useState<SubInfo | null>(null);
+
+  // Caps por plano — espelha lib/pricing.ts maxTotalSources
+  const totalCap = sub?.plan === "max" ? 100 : sub?.plan === "pro" ? 60 : 3;
+  const planLabel = sub?.plan === "max" ? "Max" : sub?.plan === "pro" ? "Pro" : "Free";
+  const isPaid = sub?.isPaid ?? false;
 
   const sources = getCuratedSources(active.id);
   const counts: CategoryCounts = sources
@@ -158,6 +170,35 @@ export default function SettingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.data?.user?.id, active.id]);
 
+  // Carrega subscription do user — fonte da verdade pra gates
+  useEffect(() => {
+    if (!session.data?.user?.id) {
+      setSub({ plan: "free", status: "active", isPaid: false });
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const jwt = await getJwtToken();
+        const res = await fetch("/api/me/subscription", {
+          headers: jwt ? { Authorization: `Bearer ${jwt}` } : undefined,
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          if (!cancelled) setSub({ plan: "free", status: "active", isPaid: false });
+          return;
+        }
+        const data = (await res.json()) as SubInfo;
+        if (!cancelled) setSub(data);
+      } catch {
+        if (!cancelled) setSub({ plan: "free", status: "active", isPaid: false });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session.data?.user?.id]);
+
   const myByCategory = (cat: Category) =>
     mySources.filter((s) => s.platform === CATEGORY_TO_PLATFORM[cat]);
 
@@ -195,7 +236,13 @@ export default function SettingsPage() {
     }
   };
 
-  const hasIndividualCron = mySources.length > 0;
+  // Toda conta (Free incluso) tem cron individual desde 2026-05-08.
+  // Free=3 fontes total, Pro=60, Max=100. Settings sempre mostra "Minhas
+  // fontes". Banner de upgrade aparece pra Free, mas sem bloqueio.
+  const hasIndividualCron = true;
+  const totalUsed = mySources.length;
+  const totalRemaining = Math.max(0, totalCap - totalUsed);
+  const totalCapReached = totalUsed >= totalCap;
 
   return (
     <main style={{ padding: "32px 28px 80px", maxWidth: 1280, margin: "0 auto" }}>
@@ -226,8 +273,8 @@ export default function SettingsPage() {
       {/* Niche switcher: pills compactas (consistente com dashboard) */}
       <NichePillBar />
 
-      {/* Free notice — versão simplificada, sem termo técnico */}
-      {!hasIndividualCron && (
+      {/* Banner de plano — info-only no Free, sem bloqueio */}
+      {!isPaid && sub && (
         <section style={{ marginBottom: 28 }}>
           <div
             className="rdv-card"
@@ -236,23 +283,27 @@ export default function SettingsPage() {
               display: "flex",
               alignItems: "center",
               gap: 14,
-              borderColor: "var(--color-rdv-amber)",
-              boxShadow: "4px 4px 0 0 var(--color-rdv-amber)",
+              borderColor: totalCapReached
+                ? "var(--color-rdv-rec)"
+                : "var(--color-rdv-amber)",
+              boxShadow: totalCapReached
+                ? "4px 4px 0 0 var(--color-rdv-rec)"
+                : "4px 4px 0 0 var(--color-rdv-amber)",
               flexWrap: "wrap",
             }}
           >
             <Lock
               size={18}
               style={{
-                color: "var(--color-rdv-amber)",
+                color: totalCapReached
+                  ? "var(--color-rdv-rec)"
+                  : "var(--color-rdv-amber)",
                 flexShrink: 0,
               }}
             />
             <div style={{ flex: 1, minWidth: 220 }}>
-              <div
-                style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 2 }}
-              >
-                Plano Free · catálogo compartilhado
+              <div style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 2 }}>
+                Plano Free · {totalUsed}/{totalCap} fontes usadas
               </div>
               <p
                 style={{
@@ -261,8 +312,9 @@ export default function SettingsPage() {
                   lineHeight: 1.5,
                 }}
               >
-                Você vê o brief gerado a partir das fontes globais abaixo.
-                No Pro você customiza fontes próprias e tem cron individual.
+                {totalCapReached
+                  ? "Limite atingido. Remova alguma ou faça upgrade pro Pro pra cadastrar até 60 fontes."
+                  : `Adicione até ${totalCap} fontes (qualquer plataforma). Pro libera 60 fontes + edição livre + briefs ilimitados.`}
               </p>
             </div>
             <Link
@@ -270,13 +322,13 @@ export default function SettingsPage() {
               className="rdv-btn rdv-btn-rec"
               style={{ padding: "8px 14px", fontSize: 10, whiteSpace: "nowrap" }}
             >
-              <Sparkles size={11} /> Ver planos
+              <Sparkles size={11} /> Ver Pro
             </Link>
           </div>
         </section>
       )}
 
-      {/* MINHAS FONTES — Pro user */}
+      {/* MINHAS FONTES — todo usuário (Free 3, Pro 60, Max 100) */}
       {hasIndividualCron && (
         <section style={{ marginBottom: 36 }}>
           <div
@@ -301,7 +353,7 @@ export default function SettingsPage() {
                 textTransform: "uppercase",
               }}
             >
-              {mySources.length} cadastrada{mySources.length === 1 ? "" : "s"}
+              {totalUsed}/{totalCap} fontes ({planLabel})
               {" · "}
               {mySources.filter((s) => s.active).length} ativa
               {mySources.filter((s) => s.active).length === 1 ? "" : "s"}
@@ -331,11 +383,33 @@ export default function SettingsPage() {
             />
             <button
               type="button"
-              onClick={() => setAdding(true)}
+              onClick={() => {
+                if (totalCapReached) {
+                  toast.error(
+                    isPaid
+                      ? `Limite ${planLabel} atingido (${totalCap}). Remova fontes pra adicionar.`
+                      : `Limite Free (${totalCap} fontes) atingido. Remova ou faça upgrade pro Pro.`,
+                  );
+                  return;
+                }
+                setAdding(true);
+              }}
+              disabled={totalCapReached}
               className="rdv-btn rdv-btn-rec"
-              style={{ padding: "8px 14px", fontSize: 11, marginLeft: "auto" }}
+              style={{
+                padding: "8px 14px",
+                fontSize: 11,
+                marginLeft: "auto",
+                opacity: totalCapReached ? 0.5 : 1,
+                cursor: totalCapReached ? "not-allowed" : "pointer",
+              }}
             >
               <Plus size={12} /> Adicionar
+              {totalRemaining > 0 && totalRemaining <= 3 && !isPaid ? (
+                <span style={{ opacity: 0.7, marginLeft: 4 }}>
+                  ({totalRemaining} restante{totalRemaining === 1 ? "" : "s"})
+                </span>
+              ) : null}
             </button>
           </div>
 
