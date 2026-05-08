@@ -40,18 +40,26 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const niche = url.searchParams.get("niche");
 
-  // Sem niche = query wide (todos vídeos). Comentário do header diz "admin
-  // only" mas nunca foi gateado (P2-2). Rate-limit defensivo até resolver:
-  // 10 reqs/min/user.
+  // P2-2 fix 2026-05-08: query wide (sem niche) agora é admin-only.
+  // Antes era rate-limit defensivo (10/min) mas qualquer user logado podia
+  // dump do DB inteiro. Comentário antigo dizia "admin only" sem enforce.
   if (!niche) {
+    const { isAdminEmail } = await import("@/lib/admin-emails");
+    if (!isAdminEmail(auth.user.email ?? null)) {
+      return NextResponse.json(
+        { error: "Filtro `niche` obrigatório." },
+        { status: 400 },
+      );
+    }
+    // Admin: ainda rate-limit pra evitar acidente
     const rl = await rateLimit({
-      key: `videos-wide:${auth.user.id}`,
+      key: `videos-wide-admin:${auth.user.id}`,
       limit: 10,
       windowMs: 60_000,
     });
     if (!rl.success) {
       return NextResponse.json(
-        { error: "Rate limit. Filtre por ?niche= ou aguarde." },
+        { error: "Rate limit." },
         { status: 429, headers: rateLimitHeaders(rl) },
       );
     }

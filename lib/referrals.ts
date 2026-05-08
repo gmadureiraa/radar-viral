@@ -433,6 +433,10 @@ export async function listReferralsForUser(
   userId: string,
   limit = 100,
 ): Promise<ReferralListItem[]> {
+  // P2-5 fix 2026-05-08: cap defensivo. Caller passa qualquer número,
+  // hardening aqui pra evitar dump de DB se algum endpoint futuro repassar
+  // limit user-controlled sem validar.
+  const safeLimit = Math.max(1, Math.min(200, Math.floor(limit)));
   const sql = getSql();
   const rows = (await sql`
     SELECT id, referred_email, status,
@@ -443,7 +447,7 @@ export async function listReferralsForUser(
       FROM referrals_radar
      WHERE referrer_user_id = ${userId}
      ORDER BY created_at DESC
-     LIMIT ${limit}
+     LIMIT ${safeLimit}
   `) as Array<{
     id: string;
     referred_email: string;

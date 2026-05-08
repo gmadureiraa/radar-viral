@@ -3,10 +3,15 @@
  *
  * Usado pelo Dashboard pra mostrar "atualizado há X" e dar ao user
  * confiança que o radar tá fresco. Lê apenas MAX(...) — barato.
+ *
+ * P2-1 fix 2026-05-08: agora exige login. Antes aberto a anônimo
+ * vazava timing de back-office (quando crons rodam, gaps de scrape
+ * window). Risco baixo mas zero motivo pra ser público.
  */
 
 import { NextResponse } from "next/server";
 import { neon } from "@neondatabase/serverless";
+import { requireUserId } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
@@ -16,7 +21,9 @@ interface MaxRow {
   ts: string | null;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = await requireUserId(req);
+  if ("response" in auth) return auth.response;
   if (!dbUrl) return NextResponse.json({ error: "DB ausente" }, { status: 503 });
 
   const sql = neon(dbUrl);
