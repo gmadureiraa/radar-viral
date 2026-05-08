@@ -128,6 +128,7 @@ async function listPaidUserTwitterSources(sql: SqlClient): Promise<PaidUserSourc
  *   quoteCount, viewCount, bookmarkCount, createdAt, isQuote, isReply,
  *   author.userName, media[] (com url/type)
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function _realApifyCall(
   apifyKey: string,
   handles: string[],
@@ -325,10 +326,14 @@ export async function GET(req: Request) {
   for (const [userId, userSources] of byUser) {
     const handles = userSources.map((s) => s.handle);
     try {
-      // Apify call REAL ativada (2026-05-08). Kill-switch interno:
-      // se TWITTER_SCRAPE_DISABLED=true, _realApifyCall retorna [] sem
-      // chamar Apify e evita custo.
-      const data = await _realApifyCall(apifyKey, handles);
+      // ⚠️ DESATIVADO 2026-05-08: actor `apidojo/twitter-scraper-lite`
+      // retorna `{demo: true}` no plano FREE da Apify (exige plano paid
+      // pra dados reais). TODO: trocar pra actor compatível com FREE
+      // (avaliados: kaitoeasyapi e danek/twitter-scraper-ppr — ambos
+      // retornaram 0 ou mock pra hormozi). Ou subir conta Apify pra
+      // STARTER e descomentar.
+      // const data = await _realApifyCall(apifyKey, handles);
+      const data: Array<Record<string, unknown>> = [];
 
       let inserted = 0;
       for (const post of data) {
@@ -346,7 +351,7 @@ export async function GET(req: Request) {
         user_id: userId,
         handles: handles.length,
         inserted,
-        status: data.length === 0 ? "no_data_or_killed" : "success",
+        status: data.length === 0 ? "apify_disabled_actor_demo" : "success",
       });
 
       await logCronRun(sql, {
@@ -372,7 +377,7 @@ export async function GET(req: Request) {
     ok: true,
     total_inserted: totalInserted,
     users: byUser.size,
-    apify_call: "ACTIVE (kill-switch: TWITTER_SCRAPE_DISABLED)",
+    apify_call: "DISABLED (actor returns demo data on FREE Apify plan — TODO trocar)",
     results,
     duration_ms: Date.now() - t0,
   });
