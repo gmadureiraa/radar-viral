@@ -96,21 +96,24 @@ async function _realApifyCall(
   apifyKey: string,
   handles: string[],
 ): Promise<Array<Record<string, unknown>>> {
-  // Custo real: ~$0.0005 × N posts. 10 handles × 12 posts = ~$0.06/run.
+  // Actor: automation-lab/threads-scraper — validado em prod 2026-05-08.
+  // Custo: $0.02 start (FREE) + $0.005 por profile + $0.005 por post.
+  //   10 handles × 12 posts = $0.02 + $0.05 + $0.60 = $0.67/run
+  //   30 runs/mês = ~$20/user full-load. (estimativa pricing.ts atualizada)
   // Kill-switch: THREADS_SCRAPE_DISABLED=true aborta sem chamar Apify.
   if (process.env.THREADS_SCRAPE_DISABLED === "true") {
     console.warn("[scrape-threads] kill-switch THREADS_SCRAPE_DISABLED=true, abortando");
     return [];
   }
-  const url = `https://api.apify.com/v2/acts/apify~threads-scraper/run-sync-get-dataset-items?token=${apifyKey}&timeout=180`;
-  const profiles = handles.map((h) => `https://www.threads.net/@${h.replace(/^@/, "")}`);
+  const usernames = handles.map((h) => h.replace(/^@/, ""));
+  const url = `https://api.apify.com/v2/acts/automation-lab~threads-scraper/run-sync-get-dataset-items?token=${apifyKey}&timeout=180`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      profiles,
-      resultsPerPage: POSTS_PER_HANDLE_PER_RUN,
-      shouldDownloadMedia: false,
+      mode: "posts",
+      usernames,
+      maxPosts: POSTS_PER_HANDLE_PER_RUN,
     }),
     signal: AbortSignal.timeout(240_000),
   });
@@ -128,12 +131,14 @@ async function upsertThreadsPost(
   post: Record<string, unknown>,
   source: PaidUserSource,
 ): Promise<boolean> {
-  const postId = (post.id ?? post.postId ?? post.code) as string | undefined;
+  // Skip non-post items (actor retorna mistura type='profile' + type='post')
+  if (post.type && post.type !== "post") return false;
+  const postId = (post.postId ?? post.id ?? post.code) as string | undefined;
   if (!postId) return false;
   try {
-    // Apify Threads scraper geralmente devolve `media` array de URLs ou
-    // singular `imageUrl`/`videoUrl`. Normaliza pra TEXT[].
-    const mediaRaw = post.media ?? post.mediaUrls ?? post.images;
+    // automation-lab/threads-scraper retorna `media` como array de objects
+    // com {url, type}. Normaliza pra TEXT[].
+    const mediaRaw = post.media;
     const mediaArr: string[] = [];
     if (Array.isArray(mediaRaw)) {
       for (const m of mediaRaw) {
@@ -144,14 +149,16 @@ async function upsertThreadsPost(
         }
       }
     }
-    if (mediaArr.length === 0) {
-      const single = (post.imageUrl as string | undefined) ?? (post.videoUrl as string | undefined);
-      if (typeof single === "string") mediaArr.push(single);
-    }
 
-    const author = (post.user as { username?: string } | undefined)?.username
-      ?? (post.username as string | undefined)
-      ?? source.handle;
+    const author = (post.username as string | undefined) ?? source.handle;
+
+    // `date` vem em ISO 8601 ("2026-05-08T13:02:04.000Z"). `timestamp` é
+    // unix seconds. Preferir date.
+    const postedAt = typeof post.date === "string"
+      ? post.date
+      : typeof post.timestamp === "number"
+        ? new Date(post.timestamp * 1000).toISOString()
+        : new Date().toISOString();
 
     await sql`
       INSERT INTO threads_posts (
@@ -166,12 +173,12 @@ async function upsertThreadsPost(
         ${source.niche_slug ?? null},
         ${source.niche_id ?? null},
         ${source.user_id},
-        ${(post.text as string) ?? (post.caption as string) ?? ""},
+        ${(post.text as string) ?? ""},
         ${mediaArr},
-        ${(post.repostCount as number) ?? (post.reposts as number) ?? 0},
-        ${(post.replyCount as number) ?? (post.replies as number) ?? 0},
-        ${(post.likeCount as number) ?? (post.likes as number) ?? 0},
-        ${typeof post.publishedOn === "string" ? post.publishedOn : typeof post.timestamp === "string" ? post.timestamp : new Date().toISOString()},
+        ${(post.repostCount as number) ?? 0},
+        ${(post.replyCount as number) ?? 0},
+        ${(post.likeCount as number) ?? 0},
+        ${postedAt},
         NOW(),
         ${JSON.stringify(post)}::jsonb
       )
