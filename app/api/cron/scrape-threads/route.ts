@@ -92,13 +92,16 @@ async function listPaidUserThreadsSources(sql: SqlClient): Promise<PaidUserSourc
 
 // ─── Apify call (COMMENTED OUT por default — custos) ─────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function _realApifyCall(
   apifyKey: string,
   handles: string[],
 ): Promise<Array<Record<string, unknown>>> {
-  // ⚠️ Custo real: ~\$0.0005 × N posts. 10 handles × 12 posts = ~\$0.06/run.
-  // Ativar só quando actor for testado.
+  // Custo real: ~$0.0005 × N posts. 10 handles × 12 posts = ~$0.06/run.
+  // Kill-switch: THREADS_SCRAPE_DISABLED=true aborta sem chamar Apify.
+  if (process.env.THREADS_SCRAPE_DISABLED === "true") {
+    console.warn("[scrape-threads] kill-switch THREADS_SCRAPE_DISABLED=true, abortando");
+    return [];
+  }
   const url = `https://api.apify.com/v2/acts/apify~threads-scraper/run-sync-get-dataset-items?token=${apifyKey}&timeout=180`;
   const profiles = handles.map((h) => `https://www.threads.net/@${h.replace(/^@/, "")}`);
   const res = await fetch(url, {
@@ -276,9 +279,9 @@ export async function GET(req: Request) {
   for (const [userId, userSources] of byUser) {
     const handles = userSources.map((s) => s.handle);
     try {
-      // ⚠️ Apify call REAL desativada por padrão. Descomentar pra ativar:
-      // const data = await _realApifyCall(apifyKey, handles);
-      const data: Array<Record<string, unknown>> = [];
+      // Apify call REAL ativada (2026-05-08). Kill-switch:
+      // THREADS_SCRAPE_DISABLED=true em env aborta sem chamar Apify.
+      const data = await _realApifyCall(apifyKey, handles);
 
       let inserted = 0;
       for (const post of data) {
@@ -297,7 +300,7 @@ export async function GET(req: Request) {
         user_id: userId,
         handles: handles.length,
         inserted,
-        status: data.length === 0 ? "apify_disabled" : "success",
+        status: data.length === 0 ? "no_data" : "success",
       });
 
       await logCronRun(sql, {
@@ -323,7 +326,7 @@ export async function GET(req: Request) {
     ok: true,
     total_inserted: totalInserted,
     users: byUser.size,
-    apify_call: "DISABLED — descomentar _realApifyCall pra ativar",
+    apify_call: "ACTIVE (kill-switch: THREADS_SCRAPE_DISABLED)",
     results,
     duration_ms: Date.now() - t0,
   });

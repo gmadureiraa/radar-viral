@@ -128,7 +128,6 @@ async function listPaidUserTwitterSources(sql: SqlClient): Promise<PaidUserSourc
  *   quoteCount, viewCount, bookmarkCount, createdAt, isQuote, isReply,
  *   author.userName, media[] (com url/type)
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function _realApifyCall(
   apifyKey: string,
   handles: string[],
@@ -326,9 +325,10 @@ export async function GET(req: Request) {
   for (const [userId, userSources] of byUser) {
     const handles = userSources.map((s) => s.handle);
     try {
-      // ⚠️ Apify call REAL desativada por padrão. Descomentar pra ativar:
-      // const data = await _realApifyCall(apifyKey, handles);
-      const data: Array<Record<string, unknown>> = [];
+      // Apify call REAL ativada (2026-05-08). Kill-switch interno:
+      // se TWITTER_SCRAPE_DISABLED=true, _realApifyCall retorna [] sem
+      // chamar Apify e evita custo.
+      const data = await _realApifyCall(apifyKey, handles);
 
       let inserted = 0;
       for (const post of data) {
@@ -346,7 +346,7 @@ export async function GET(req: Request) {
         user_id: userId,
         handles: handles.length,
         inserted,
-        status: data.length === 0 ? "apify_disabled" : "success",
+        status: data.length === 0 ? "no_data_or_killed" : "success",
       });
 
       await logCronRun(sql, {
@@ -372,7 +372,7 @@ export async function GET(req: Request) {
     ok: true,
     total_inserted: totalInserted,
     users: byUser.size,
-    apify_call: "DISABLED — descomentar _realApifyCall pra ativar",
+    apify_call: "ACTIVE (kill-switch: TWITTER_SCRAPE_DISABLED)",
     results,
     duration_ms: Date.now() - t0,
   });
