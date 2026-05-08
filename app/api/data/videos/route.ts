@@ -11,6 +11,7 @@
 
 import { NextResponse } from "next/server";
 import { requireUserId } from "@/lib/server-auth";
+import { rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { getSql, isDbConfigured } from "@/lib/db";
 import { getCuratedSources } from "@/lib/sources-curated";
 
@@ -38,6 +39,24 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const niche = url.searchParams.get("niche");
+
+  // Sem niche = query wide (todos vídeos). Comentário do header diz "admin
+  // only" mas nunca foi gateado (P2-2). Rate-limit defensivo até resolver:
+  // 10 reqs/min/user.
+  if (!niche) {
+    const rl = await rateLimit({
+      key: `videos-wide:${auth.user.id}`,
+      limit: 10,
+      windowMs: 60_000,
+    });
+    if (!rl.success) {
+      return NextResponse.json(
+        { error: "Rate limit. Filtre por ?niche= ou aguarde." },
+        { status: 429, headers: rateLimitHeaders(rl) },
+      );
+    }
+  }
+
   const daysRaw = Number(url.searchParams.get("days") ?? 7);
   const hoursParam = url.searchParams.get("hours");
   const hours = hoursParam ? Math.min(720, Math.max(1, Number(hoursParam) || 0)) : null;
@@ -89,7 +108,7 @@ export async function GET(req: Request) {
   } catch (err) {
     console.error("[/api/data/videos] failed:", err);
     return NextResponse.json(
-      { error: process.env.NODE_ENV === "production" ? "Falha" : String(err) },
+      { error: process.env.VERCEL_ENV === "production" ? "Falha" : String(err) },
       { status: 500 },
     );
   }

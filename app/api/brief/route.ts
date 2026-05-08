@@ -68,7 +68,7 @@ export async function GET(req: Request) {
   } catch (err) {
     console.error("[/api/brief] failed:", err);
     return NextResponse.json(
-      { error: process.env.NODE_ENV === "production" ? "Falha" : String(err) },
+      { error: process.env.VERCEL_ENV === "production" ? "Falha" : String(err) },
       { status: 500 },
     );
   }

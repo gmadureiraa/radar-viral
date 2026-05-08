@@ -15,6 +15,7 @@
 import { NextResponse } from "next/server";
 import { stripe, PLANS_RDV, STRIPE_APP_TAG, type PlanId } from "@/lib/stripe";
 import { requireUserId } from "@/lib/server-auth";
+import { rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { neon } from "@neondatabase/serverless";
 
 export const runtime = "nodejs";
@@ -33,6 +34,20 @@ export async function POST(req: Request) {
   if ("response" in auth) return auth.response;
   const userId = auth.user.id;
   const userEmail = auth.user.email;
+
+  // Rate limit: 5 checkouts/min/user. Cada chamada = round-trip Stripe API
+  // + DB query, e atacante logado pode tentar abuse.
+  const rl = await rateLimit({
+    key: `stripe:checkout:${userId}`,
+    limit: 5,
+    windowMs: 60_000,
+  });
+  if (!rl.success) {
+    return NextResponse.json(
+      { error: "Muitas tentativas. Aguarde alguns segundos." },
+      { status: 429, headers: rateLimitHeaders(rl) },
+    );
+  }
 
   let body: { planId?: string; referralCode?: string };
   try {
@@ -134,7 +149,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error:
-          process.env.NODE_ENV === "production"
+          process.env.VERCEL_ENV === "production"
             ? "Falha ao criar checkout. Tente novamente."
             : err instanceof Error
               ? err.message
