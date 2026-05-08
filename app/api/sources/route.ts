@@ -37,6 +37,7 @@ const VALID_PLATFORMS = new Set([
   "linkedin",
   "twitter",
   "tiktok",
+  "threads",
 ]);
 
 /**
