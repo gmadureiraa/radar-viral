@@ -18,6 +18,7 @@ import {
   Gift,
   AtSign,
   Hash,
+  Music2,
 } from "lucide-react";
 import {
   useNeonSession,
@@ -49,6 +50,7 @@ const PRIMARY_NAV: NavItem[] = [
   { href: "/app", label: "Dashboard", icon: LayoutDashboard },
   { href: "/app/instagram", label: "Instagram", icon: Instagram },
   { href: "/app/threads", label: "Threads", icon: AtSign, badge: "NEW" },
+  { href: "/app/tiktok", label: "TikTok", icon: Music2, badge: "NEW" },
   { href: "/app/youtube", label: "YouTube", icon: Youtube },
   { href: "/app/twitter", label: "X / Twitter", icon: Hash },
   { href: "/app/news", label: "Notícias", icon: Newspaper },
