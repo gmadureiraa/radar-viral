@@ -15,3 +15,6 @@ tsconfig.tsbuildinfo
 
 # Security audits — local-only, contém detalhes de vulnerabilidades
 .security/
+
+# Local cron-test env (puxado via vercel env pull pra disparo manual)
+.env.cron-test
