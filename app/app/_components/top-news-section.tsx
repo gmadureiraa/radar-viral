@@ -196,13 +196,20 @@ function NewsCard({
 }) {
   const ago = relativeTime(article.pub_date);
   return (
-    <div
+    <a
+      href={article.link}
+      target="_blank"
+      rel="noreferrer"
       className="rdv-card"
+      aria-label={`Abrir notícia: ${article.title}`}
       style={{
         padding: "12px 16px",
         display: "flex",
         gap: 14,
         alignItems: "center",
+        textDecoration: "none",
+        color: "inherit",
+        cursor: "pointer",
       }}
     >
       {article.thumbnail ? (
@@ -293,19 +300,20 @@ function NewsCard({
         </div>
       </div>
       <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-        <a
-          href={article.link}
-          target="_blank"
-          rel="noreferrer"
+        <span
           className="rdv-btn rdv-btn-ghost"
-          style={{ padding: "6px 10px", fontSize: 9 }}
-          aria-label="Abrir notícia"
+          style={{ padding: "6px 10px", fontSize: 9, pointerEvents: "none" }}
+          aria-hidden="true"
         >
           <ExternalLink size={11} />
-        </a>
+        </span>
         <button
           type="button"
-          onClick={onToggleSave}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggleSave();
+          }}
           className="rdv-btn rdv-btn-ghost"
           style={{
             padding: "6px 10px",
@@ -318,7 +326,7 @@ function NewsCard({
           {saved ? <BookmarkCheck size={11} /> : <Bookmark size={11} />}
         </button>
       </div>
-    </div>
+    </a>
   );
 }
 
