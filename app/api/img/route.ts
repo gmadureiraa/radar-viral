@@ -16,7 +16,14 @@ const ALLOWED_HOSTS = [
   "cdninstagram.com",
   "fbcdn.net",
   "instagram.com",
-  "ytimg.com", // bonus: YouTube thumbs
+  "ytimg.com", // YouTube thumbs
+  "googleusercontent.com", // YouTube channel avatars (yt3.googleusercontent.com)
+  "ggpht.com", // YouTube avatars (legado)
+  "tiktokcdn.com",
+  "tiktokcdn-us.com",
+  "tiktokcdn-eu.com",
+  "bytecdn.com",
+  "twimg.com", // X avatars (best-effort)
 ];
 
 export async function GET(req: Request) {

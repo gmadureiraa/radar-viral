@@ -576,22 +576,8 @@ function MyCategoryGrid({
             opacity: s.active ? 1 : 0.55,
           }}
         >
-          <div
-            style={{
-              flexShrink: 0,
-              width: 32,
-              height: 32,
-              background: s.active
-                ? "var(--color-rdv-ink)"
-                : "var(--color-rdv-line)",
-              color: "var(--color-rdv-paper)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Icon size={13} />
-          </div>
+          <SourceAvatar source={s} icon={<Icon size={13} />} />
+
           <div style={{ flex: 1, minWidth: 0 }}>
             <div
               style={{
@@ -660,6 +646,71 @@ function MyCategoryGrid({
           />
         </div>
       ))}
+    </div>
+  );
+}
+
+function SourceAvatar({
+  source,
+  icon,
+}: {
+  source: UserSourceRow;
+  icon: React.ReactNode;
+}) {
+  const [errored, setErrored] = useState(false);
+  const showImage = !!source.avatar_url && !errored;
+  const initial = (source.display_name ?? source.handle ?? "?")
+    .replace(/^@/, "")
+    .charAt(0)
+    .toUpperCase();
+
+  return (
+    <div
+      style={{
+        flexShrink: 0,
+        width: 38,
+        height: 38,
+        borderRadius: "50%",
+        background: showImage
+          ? "transparent"
+          : source.active
+            ? "var(--color-rdv-ink)"
+            : "var(--color-rdv-line)",
+        color: "var(--color-rdv-paper)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+        position: "relative",
+        border: showImage ? "1.5px solid var(--color-rdv-ink)" : "none",
+      }}
+    >
+      {showImage ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={`/api/img?u=${encodeURIComponent(source.avatar_url!)}`}
+          alt={source.handle}
+          loading="lazy"
+          onError={() => setErrored(true)}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+          }}
+        />
+      ) : initial && initial !== "?" ? (
+        <span
+          style={{
+            fontSize: 14,
+            fontWeight: 800,
+            letterSpacing: "0.02em",
+          }}
+        >
+          {initial}
+        </span>
+      ) : (
+        icon
+      )}
     </div>
   );
 }

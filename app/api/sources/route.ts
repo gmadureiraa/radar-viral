@@ -16,6 +16,21 @@ import { getSql, isDbConfigured } from "@/lib/db";
 import { getUserSubscription } from "@/lib/subscriptions";
 import { getPlanCapForPlatform, isPaidPlan } from "@/lib/pricing";
 import { resolveYouTubeChannelId } from "@/lib/youtube-channels";
+import { resolveSourceAvatar } from "@/lib/avatar-resolver";
+
+/**
+ * Garante que `tracked_sources.avatar_url` existe. Idempotente, on-demand.
+ * Chamar nos pontos que precisam (GET pra ler, POST pra escrever).
+ */
+async function ensureAvatarColumn(
+  sql: ReturnType<typeof getSql>,
+): Promise<void> {
+  try {
+    await sql`ALTER TABLE tracked_sources ADD COLUMN IF NOT EXISTS avatar_url TEXT`;
+  } catch (err) {
+    console.warn("[/api/sources] ensureAvatarColumn failed (swallowed):", err);
+  }
+}
 
 export const runtime = "nodejs";
 
@@ -25,6 +40,7 @@ export interface UserSourceRow {
   niche: string;
   handle: string;
   display_name: string | null;
+  avatar_url: string | null;
   active: boolean;
   added_at: string;
   source: string | null;
@@ -33,12 +49,12 @@ export interface UserSourceRow {
 const VALID_PLATFORMS = new Set([
   "instagram",
   "youtube",
+  "threads",
+  "tiktok",
+  "twitter",
   "rss",
   "newsletter",
   "linkedin",
-  "twitter",
-  "tiktok",
-  "threads",
 ]);
 
 /**
@@ -61,9 +77,10 @@ export async function GET(req: Request) {
   const niche = url.searchParams.get("niche");
 
   const sql = getSql();
+  await ensureAvatarColumn(sql);
   const rows = niche
     ? ((await sql`
-        SELECT id, platform, niche, handle, display_name, active,
+        SELECT id, platform, niche, handle, display_name, avatar_url, active,
                added_at::text, source
           FROM tracked_sources
          WHERE user_id = ${auth.user.id}
@@ -71,7 +88,7 @@ export async function GET(req: Request) {
          ORDER BY platform, handle
       `) as unknown as UserSourceRow[])
     : ((await sql`
-        SELECT id, platform, niche, handle, display_name, active,
+        SELECT id, platform, niche, handle, display_name, avatar_url, active,
                added_at::text, source
           FROM tracked_sources
          WHERE user_id = ${auth.user.id}
@@ -203,19 +220,39 @@ export async function POST(req: Request) {
     }
   }
 
+  // ── Avatar resolution (best-effort, não bloqueia INSERT) ─────────────
+  // Pra IG/YT/TikTok/Threads tenta scrape do og:image. Se falhar, fica
+  // null e UI usa fallback (inicial estilizada). X/Twitter sempre null.
+  let avatarUrl: string | null = null;
+  try {
+    const av = await resolveSourceAvatar(
+      body.platform,
+      body.platform === "youtube" ? body.handle : resolvedHandle,
+    );
+    avatarUrl = av.avatarUrl;
+    if (!resolvedDisplayName && av.displayName) {
+      resolvedDisplayName = av.displayName;
+    }
+  } catch {
+    /* avatar é opcional, não bloqueia criação */
+  }
+
+  await ensureAvatarColumn(sql);
+
   try {
     const rows = (await sql`
       INSERT INTO tracked_sources
-        (platform, niche, handle, display_name, active, source, user_id, added_at)
+        (platform, niche, handle, display_name, avatar_url, active, source, user_id, added_at)
       VALUES (
         ${body.platform}, ${body.niche}, ${resolvedHandle},
         ${resolvedDisplayName},
+        ${avatarUrl},
         ${body.active ?? true},
         ${"manual"},
         ${auth.user.id},
         NOW()
       )
-      RETURNING id, platform, niche, handle, display_name, active,
+      RETURNING id, platform, niche, handle, display_name, avatar_url, active,
                 added_at::text, source
     `) as unknown as UserSourceRow[];
     return NextResponse.json({ source: rows[0] });
@@ -256,6 +293,7 @@ export async function PATCH(req: Request) {
   }
 
   const sql = getSql();
+  await ensureAvatarColumn(sql);
   try {
     const rows = (await sql`
       UPDATE tracked_sources
@@ -266,7 +304,7 @@ export async function PATCH(req: Request) {
              }, active)
        WHERE id = ${body.id}
          AND user_id = ${auth.user.id}
-       RETURNING id, platform, niche, handle, display_name, active,
+       RETURNING id, platform, niche, handle, display_name, avatar_url, active,
                  added_at::text, source
     `) as unknown as UserSourceRow[];
     if (rows.length === 0) {
