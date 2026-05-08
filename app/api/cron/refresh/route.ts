@@ -24,6 +24,7 @@
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import { checkCronAuth, isCronEnabled, getCronSql, logCronRun, jsonResponse } from "@/lib/cron-utils";
 import { getPlanCapForPlatform, hasIndividualCron, type PlanId } from "@/lib/pricing";
+import { getActiveNiches } from "@/lib/active-niches";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -115,9 +116,11 @@ function stripHtml(s: string): string {
 
 // ─── News RSS ────────────────────────────────────────────────────────
 
-async function refreshNews(sql: SqlClient): Promise<number> {
+async function refreshNews(sql: SqlClient, activeNiches: Set<string>): Promise<number> {
   let inserted = 0;
   for (const source of NEWS_TOP) {
+    // Skip nicho não-ativo (só roda crypto se tiver user com fonte crypto)
+    if (!activeNiches.has(source.niche)) continue;
     try {
       const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(source.rss)}`;
       const res = await fetch(apiUrl, { signal: AbortSignal.timeout(15_000) });
@@ -246,16 +249,17 @@ async function listIgBundlesByUser(sql: SqlClient): Promise<UserIgBundles[]> {
   try {
     dbRows = (await sql`
       SELECT ts.user_id::text AS user_id,
-             COALESCE(usr.plan::text, 'free') AS plan,
+             usr.plan::text AS plan,
              COALESCE(ts.niche::text, '') AS niche,
              ts.handle
         FROM tracked_sources ts
-        LEFT JOIN user_subscriptions_radar usr
+        INNER JOIN user_subscriptions_radar usr
           ON usr.user_id = ts.user_id
-         AND usr.status = 'active'
        WHERE ts.platform = 'instagram'
          AND ts.user_id IS NOT NULL
          AND COALESCE(ts.active, TRUE) = TRUE
+         AND usr.status = 'active'
+         AND usr.plan IN ('pro', 'max')
     `) as Array<{ user_id: string; plan: string; niche: string; handle: string }>;
   } catch (err) {
     console.warn("[refresh-ig-user] listIgBundlesByUser fallback:", err);
@@ -265,7 +269,7 @@ async function listIgBundlesByUser(sql: SqlClient): Promise<UserIgBundles[]> {
   const byUser = new Map<string, { plan: PlanId; perNiche: Map<NicheId, Set<string>> }>();
   for (const r of dbRows) {
     if (!["crypto", "marketing", "ai"].includes(r.niche)) continue;
-    if (r.plan !== "free" && r.plan !== "pro" && r.plan !== "max") continue;
+    if (r.plan !== "pro" && r.plan !== "max") continue;
     const plan = r.plan as PlanId;
     if (!hasIndividualCron(plan)) continue;
     const slug = r.niche as NicheId;
@@ -659,6 +663,34 @@ async function refreshYoutubeChannel(
   return { inserted, errors };
 }
 
+async function refreshYoutubeFiltered(
+  sql: SqlClient,
+  activeNiches: Set<string>,
+): Promise<{ inserted: number; errors: string[] }> {
+  const { YOUTUBE_CHANNELS } = await import("@/lib/youtube-channels");
+  let inserted = 0;
+  const errors: string[] = [];
+  for (const ch of YOUTUBE_CHANNELS) {
+    if (!ch.channelId) continue;
+    if (!activeNiches.has(ch.niche)) continue;
+    try {
+      const r = await refreshYoutubeChannel(sql, {
+        channelId: ch.channelId,
+        handle: ch.handle,
+        name: ch.name,
+      });
+      inserted += r.inserted;
+      if (r.errors.length > 0) errors.push(...r.errors);
+    } catch (channelErr) {
+      errors.push(
+        `fetch ${ch.handle}: ${channelErr instanceof Error ? channelErr.message : String(channelErr)}`,
+      );
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return { inserted, errors: errors.slice(0, 20) };
+}
+
 async function refreshYoutube(
   sql: SqlClient,
 ): Promise<{ inserted: number; errors: string[] }> {
@@ -715,16 +747,17 @@ async function refreshYoutubePerUser(sql: SqlClient): Promise<{
   try {
     dbRows = (await sql`
       SELECT ts.user_id::text AS user_id,
-             COALESCE(usr.plan::text, 'free') AS plan,
+             usr.plan::text AS plan,
              ts.handle,
              ts.display_name
         FROM tracked_sources ts
-        LEFT JOIN user_subscriptions_radar usr
+        INNER JOIN user_subscriptions_radar usr
           ON usr.user_id = ts.user_id
-         AND usr.status = 'active'
        WHERE ts.platform = 'youtube'
          AND ts.user_id IS NOT NULL
          AND COALESCE(ts.active, TRUE) = TRUE
+         AND usr.status = 'active'
+         AND usr.plan IN ('pro', 'max')
     `) as Array<{
       user_id: string;
       plan: string;
@@ -739,7 +772,7 @@ async function refreshYoutubePerUser(sql: SqlClient): Promise<{
   // Group por user e resolve channelId
   const byUser = new Map<string, { plan: PlanId; targets: YtChannelTarget[] }>();
   for (const r of dbRows) {
-    if (r.plan !== "free" && r.plan !== "pro" && r.plan !== "max") continue;
+    if (r.plan !== "pro" && r.plan !== "max") continue;
     const plan = r.plan as PlanId;
     if (!hasIndividualCron(plan)) continue;
 
@@ -842,13 +875,17 @@ export async function GET(req: Request) {
   const sql = getCronSql();
   const t0 = Date.now();
 
+  // Active niches — economiza Apify rodando só nichos com user (mkt+ai sempre)
+  const activeNiches = await getActiveNiches(sql);
+
   if (auth.isDry) {
     const bundles = await listIgBundles(sql);
     const userBundles = await listIgBundlesByUser(sql);
     return jsonResponse({
       ok: true,
       dry: true,
-      news_sources: NEWS_TOP.length,
+      active_niches: Array.from(activeNiches),
+      news_sources: NEWS_TOP.filter((s) => activeNiches.has(s.niche)).length,
       ig_bundles: bundles.map((b) => ({ slug: b.slug, handles: b.handles.length })),
       ig_user_bundles: userBundles.map((u) => ({
         user_id: u.userId,
@@ -860,11 +897,11 @@ export async function GET(req: Request) {
     });
   }
 
-  const summary: Record<string, unknown> = {};
+  const summary: Record<string, unknown> = { active_niches: Array.from(activeNiches) };
 
   // News
   try {
-    const n = await refreshNews(sql);
+    const n = await refreshNews(sql, activeNiches);
     summary.news_inserted = n;
     await logCronRun(sql, { cronType: "refresh-news", postsAdded: n, status: "success" });
   } catch (err) {
@@ -922,7 +959,7 @@ export async function GET(req: Request) {
 
   // YouTube (catálogo curado global — todos os planos veem)
   try {
-    const y = await refreshYoutube(sql);
+    const y = await refreshYoutubeFiltered(sql, activeNiches);
     summary.youtube_inserted = y.inserted;
     if (y.errors.length > 0) summary.youtube_partial_errors = y.errors;
     await logCronRun(sql, {

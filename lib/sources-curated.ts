@@ -1,186 +1,205 @@
 /**
- * Fontes curadas por nicho — pré-cadastradas pra todo user que pagar.
+ * Fontes curadas por nicho — catálogo enxuto e premium.
  *
- * IMPORTANTE: estes dados são apenas o catálogo. NÃO são populados
- * automaticamente em `tracked_sources`. Quando o user pagar (paywall
- * futuro), uma rotina copia essas listas pra `tracked_sources` com
- * `user_id = <user>` e o cron passa a popular DB pra esse user.
+ * Estrutura: 3 fontes por plataforma × 7 plataformas × 3 nichos = 63 fontes.
  *
- * Pra economia: free user vê apenas dados globais (sem cron próprio);
- * pago dispara cron individual.
+ * Plataformas: instagram, youtube, tiktok, threads, twitter, rss, newsletter.
+ * Nichos: crypto, marketing, ai.
  *
- * Estrutura por nicho × 4 categorias:
- *  - igHandles[]: contas IG mais relevantes do nicho
- *  - youtubeChannels[]: canais YT mais relevantes
- *  - newsRss[]: feeds RSS de portais
- *  - newsletterSubscribe[]: links pra user se inscrever em newsletters
+ * Comportamento:
+ *  - Todo user vê o catálogo na UI (Free e Pro).
+ *  - Cron individual usa essas fontes APENAS pra users sem fontes próprias
+ *    OU como complemento (ler `disabled_curated_sources` pra filtrar).
+ *  - User pode desativar curadas individualmente (não vão pro cron dele).
+ *
+ * IMPORTANT: cada item tem `key` único (curated:<niche>:<platform>:<handle>)
+ * pra permitir toggle on/off por user.
  */
 
-export interface CuratedSources {
-  niche: string; // crypto / marketing / ai
+export type CuratedNiche = "crypto" | "marketing" | "ai";
+export type CuratedPlatform =
+  | "instagram"
+  | "youtube"
+  | "tiktok"
+  | "threads"
+  | "twitter"
+  | "rss"
+  | "newsletter";
+
+export interface CuratedSource {
+  /** Identificador único cross-renderização — usado pra toggle on/off. */
+  key: string;
+  niche: CuratedNiche;
+  platform: CuratedPlatform;
+  /** Handle/identifier no formato esperado pelo scraper. */
+  handle: string;
+  /** Nome amigável pro display. */
+  label: string;
+  /** Sub-info opcional (followers, idioma, descrição curta). */
+  detail?: string;
+  /** URL canônica externa (perfil/canal/feed). */
+  externalUrl?: string;
+  /** YT channelId UC... pra RSS scrape direto. */
+  channelId?: string;
+  /** Linguagem (RSS/newsletter): pt/en. */
+  lang?: "pt" | "en";
+  /** Email do remetente (newsletter). */
+  sender?: string;
+}
+
+function key(niche: CuratedNiche, platform: CuratedPlatform, handle: string): string {
+  return `curated:${niche}:${platform}:${handle.replace(/^@/, "").toLowerCase()}`;
+}
+
+// ─── CRYPTO ────────────────────────────────────────────────────────────
+
+const CRYPTO: CuratedSource[] = [
+  // Instagram (3)
+  { key: key("crypto", "instagram", "investidor4.20"), niche: "crypto", platform: "instagram", handle: "investidor4.20", label: "Lucas Amendola", detail: "Bitcoin BR · 300k+", externalUrl: "https://instagram.com/investidor4.20" },
+  { key: key("crypto", "instagram", "augusto.backes"), niche: "crypto", platform: "instagram", handle: "augusto.backes", label: "Augusto Backes", detail: "Cripto fundamento", externalUrl: "https://instagram.com/augusto.backes" },
+  { key: key("crypto", "instagram", "mercadobitcoin"), niche: "crypto", platform: "instagram", handle: "mercadobitcoin", label: "Mercado Bitcoin", detail: "Exchange BR", externalUrl: "https://instagram.com/mercadobitcoin" },
+  // YouTube (3)
+  { key: key("crypto", "youtube", "@CoinBureau"), niche: "crypto", platform: "youtube", handle: "@CoinBureau", channelId: "UCqK_GSMbpiV8spgD3ZGloSw", label: "Coin Bureau", detail: "Análises EN", externalUrl: "https://youtube.com/@CoinBureau" },
+  { key: key("crypto", "youtube", "@Bankless"), niche: "crypto", platform: "youtube", handle: "@Bankless", channelId: "UCAl9Ld79qaZxp9JzEOwd3aA", label: "Bankless", detail: "DeFi/web3", externalUrl: "https://youtube.com/@Bankless" },
+  { key: key("crypto", "youtube", "@Investidor4.20"), niche: "crypto", platform: "youtube", handle: "@Investidor4.20", channelId: "UC8oofAsuieQv3imZGvaUDOQ", label: "Investidor 4.20", detail: "Lucas Amendola BR", externalUrl: "https://youtube.com/@Investidor4.20" },
+  // TikTok (3)
+  { key: key("crypto", "tiktok", "investidor4.20"), niche: "crypto", platform: "tiktok", handle: "investidor4.20", label: "Lucas Amendola", detail: "Bitcoin clipes", externalUrl: "https://tiktok.com/@investidor4.20" },
+  { key: key("crypto", "tiktok", "augustobackes"), niche: "crypto", platform: "tiktok", handle: "augustobackes", label: "Augusto Backes", externalUrl: "https://tiktok.com/@augustobackes" },
+  { key: key("crypto", "tiktok", "coinbureau"), niche: "crypto", platform: "tiktok", handle: "coinbureau", label: "Coin Bureau", externalUrl: "https://tiktok.com/@coinbureau" },
+  // Threads (3)
+  { key: key("crypto", "threads", "vitalik.eth"), niche: "crypto", platform: "threads", handle: "vitalik.eth", label: "Vitalik Buterin", detail: "Co-founder Ethereum", externalUrl: "https://threads.net/@vitalik.eth" },
+  { key: key("crypto", "threads", "balajis"), niche: "crypto", platform: "threads", handle: "balajis", label: "Balaji Srinivasan", detail: "Crypto contrarian", externalUrl: "https://threads.net/@balajis" },
+  { key: key("crypto", "threads", "documentingbtc"), niche: "crypto", platform: "threads", handle: "documentingbtc", label: "Documenting Bitcoin", externalUrl: "https://threads.net/@documentingbtc" },
+  // Twitter/X (3)
+  { key: key("crypto", "twitter", "VitalikButerin"), niche: "crypto", platform: "twitter", handle: "VitalikButerin", label: "Vitalik Buterin", detail: "Co-founder Ethereum", externalUrl: "https://twitter.com/VitalikButerin" },
+  { key: key("crypto", "twitter", "cz_binance"), niche: "crypto", platform: "twitter", handle: "cz_binance", label: "CZ", detail: "Ex-CEO Binance", externalUrl: "https://twitter.com/cz_binance" },
+  { key: key("crypto", "twitter", "DocumentingBTC"), niche: "crypto", platform: "twitter", handle: "DocumentingBTC", label: "Documenting BTC", externalUrl: "https://twitter.com/DocumentingBTC" },
+  // RSS Notícias (3)
+  { key: key("crypto", "rss", "portaldobitcoin"), niche: "crypto", platform: "rss", handle: "https://portaldobitcoin.uol.com.br/feed/", label: "Portal do Bitcoin", lang: "pt", externalUrl: "https://portaldobitcoin.uol.com.br" },
+  { key: key("crypto", "rss", "coindesk"), niche: "crypto", platform: "rss", handle: "https://www.coindesk.com/arc/outboundfeeds/rss/", label: "CoinDesk", lang: "en", externalUrl: "https://www.coindesk.com" },
+  { key: key("crypto", "rss", "bitcoinmagazine"), niche: "crypto", platform: "rss", handle: "https://bitcoinmagazine.com/.rss/full/", label: "Bitcoin Magazine", lang: "en", externalUrl: "https://bitcoinmagazine.com" },
+  // Newsletter (3)
+  { key: key("crypto", "newsletter", "defiverso"), niche: "crypto", platform: "newsletter", handle: "lucas@defiverso.com.br", label: "Resumo Criptoverso", detail: "Defiverso · Lucas Amendola", sender: "lucas@defiverso.com.br", externalUrl: "https://defiverso.kaleidos.com.br/newsletter" },
+  { key: key("crypto", "newsletter", "bankless"), niche: "crypto", platform: "newsletter", handle: "newsletter@bankless.com", label: "Bankless", detail: "DeFi/web3 EN", sender: "newsletter@bankless.com", externalUrl: "https://www.bankless.com/" },
+  { key: key("crypto", "newsletter", "milkroad"), niche: "crypto", platform: "newsletter", handle: "kyle@milkroad.com", label: "Milk Road", detail: "Daily crypto EN", sender: "kyle@milkroad.com", externalUrl: "https://milkroad.com/" },
+];
+
+// ─── MARKETING ─────────────────────────────────────────────────────────
+
+const MARKETING: CuratedSource[] = [
+  // Instagram (3)
+  { key: key("marketing", "instagram", "hormozi"), niche: "marketing", platform: "instagram", handle: "hormozi", label: "Alex Hormozi", detail: "Business · 2M+", externalUrl: "https://instagram.com/hormozi" },
+  { key: key("marketing", "instagram", "garyvee"), niche: "marketing", platform: "instagram", handle: "garyvee", label: "Gary Vaynerchuk", detail: "Marketing icon", externalUrl: "https://instagram.com/garyvee" },
+  { key: key("marketing", "instagram", "ogmadureira"), niche: "marketing", platform: "instagram", handle: "ogmadureira", label: "Gabriel Madureira", detail: "Marketing/IA BR", externalUrl: "https://instagram.com/ogmadureira" },
+  // YouTube (3)
+  { key: key("marketing", "youtube", "@AlexHormozi"), niche: "marketing", platform: "youtube", handle: "@AlexHormozi", channelId: "UCUyDOdBWhC1MCxEjC46d-zw", label: "Alex Hormozi", detail: "Business EN", externalUrl: "https://youtube.com/@AlexHormozi" },
+  { key: key("marketing", "youtube", "@AhrefsCom"), niche: "marketing", platform: "youtube", handle: "@AhrefsCom", channelId: "UCWquNQV8Y0_defMKnGKrFOQ", label: "Ahrefs", detail: "SEO técnico", externalUrl: "https://youtube.com/@AhrefsCom" },
+  { key: key("marketing", "youtube", "@neilpatel"), niche: "marketing", platform: "youtube", handle: "@neilpatel", channelId: "UCl-Zrl0QhF66lu1aGXaTbfw", label: "Neil Patel", detail: "Growth/SEO", externalUrl: "https://youtube.com/@neilpatel" },
+  // TikTok (3)
+  { key: key("marketing", "tiktok", "hormozi"), niche: "marketing", platform: "tiktok", handle: "hormozi", label: "Alex Hormozi", detail: "Business clipes", externalUrl: "https://tiktok.com/@hormozi" },
+  { key: key("marketing", "tiktok", "garyvee"), niche: "marketing", platform: "tiktok", handle: "garyvee", label: "Gary Vaynerchuk", externalUrl: "https://tiktok.com/@garyvee" },
+  { key: key("marketing", "tiktok", "ogmadureira"), niche: "marketing", platform: "tiktok", handle: "ogmadureira", label: "Gabriel Madureira", externalUrl: "https://tiktok.com/@ogmadureira" },
+  // Threads (3)
+  { key: key("marketing", "threads", "hormozi"), niche: "marketing", platform: "threads", handle: "hormozi", label: "Alex Hormozi", externalUrl: "https://threads.net/@hormozi" },
+  { key: key("marketing", "threads", "garyvee"), niche: "marketing", platform: "threads", handle: "garyvee", label: "Gary Vaynerchuk", externalUrl: "https://threads.net/@garyvee" },
+  { key: key("marketing", "threads", "thejustinwelsh"), niche: "marketing", platform: "threads", handle: "thejustinwelsh", label: "Justin Welsh", detail: "Solopreneur", externalUrl: "https://threads.net/@thejustinwelsh" },
+  // Twitter/X (3)
+  { key: key("marketing", "twitter", "AlexHormozi"), niche: "marketing", platform: "twitter", handle: "AlexHormozi", label: "Alex Hormozi", externalUrl: "https://twitter.com/AlexHormozi" },
+  { key: key("marketing", "twitter", "garyvee"), niche: "marketing", platform: "twitter", handle: "garyvee", label: "Gary Vaynerchuk", externalUrl: "https://twitter.com/garyvee" },
+  { key: key("marketing", "twitter", "thejustinwelsh"), niche: "marketing", platform: "twitter", handle: "thejustinwelsh", label: "Justin Welsh", detail: "Solo content business", externalUrl: "https://twitter.com/thejustinwelsh" },
+  // RSS Notícias (3)
+  { key: key("marketing", "rss", "marketingbrew"), niche: "marketing", platform: "rss", handle: "https://www.marketingbrew.com/feed", label: "Marketing Brew", lang: "en", externalUrl: "https://www.marketingbrew.com" },
+  { key: key("marketing", "rss", "searchengineland"), niche: "marketing", platform: "rss", handle: "https://searchengineland.com/feed", label: "Search Engine Land", lang: "en", externalUrl: "https://searchengineland.com" },
+  { key: key("marketing", "rss", "meioemensagem"), niche: "marketing", platform: "rss", handle: "https://www.meioemensagem.com.br/feed", label: "Meio & Mensagem", lang: "pt", externalUrl: "https://www.meioemensagem.com.br" },
+  // Newsletter (3)
+  { key: key("marketing", "newsletter", "marketingbrew"), niche: "marketing", platform: "newsletter", handle: "newsletter@morningbrew.com", label: "Marketing Brew", detail: "Daily digest EN", sender: "newsletter@morningbrew.com", externalUrl: "https://www.marketingbrew.com/subscribe" },
+  { key: key("marketing", "newsletter", "demandcurve"), niche: "marketing", platform: "newsletter", handle: "founders@demandcurve.com", label: "Demand Curve", detail: "Growth founders", sender: "founders@demandcurve.com", externalUrl: "https://demandcurve.com/newsletter" },
+  { key: key("marketing", "newsletter", "whywebuy"), niche: "marketing", platform: "newsletter", handle: "katelyn@whywebuy.co", label: "Why We Buy", detail: "Katelyn Bourgoin · psicologia", sender: "katelyn@whywebuy.co", externalUrl: "https://whywebuy.beehiiv.com/" },
+];
+
+// ─── AI ────────────────────────────────────────────────────────────────
+
+const AI: CuratedSource[] = [
+  // Instagram (3)
+  { key: key("ai", "instagram", "openai"), niche: "ai", platform: "instagram", handle: "openai", label: "OpenAI", detail: "ChatGPT/GPT", externalUrl: "https://instagram.com/openai" },
+  { key: key("ai", "instagram", "anthropicai"), niche: "ai", platform: "instagram", handle: "anthropicai", label: "Anthropic", detail: "Claude/safety", externalUrl: "https://instagram.com/anthropicai" },
+  { key: key("ai", "instagram", "huggingface"), niche: "ai", platform: "instagram", handle: "huggingface", label: "Hugging Face", detail: "Open source AI", externalUrl: "https://instagram.com/huggingface" },
+  // YouTube (3)
+  { key: key("ai", "youtube", "@matthew_berman"), niche: "ai", platform: "youtube", handle: "@matthew_berman", channelId: "UCawZsQWqfGSbCI5yjkdVkTA", label: "Matthew Berman", detail: "Daily AI updates", externalUrl: "https://youtube.com/@matthew_berman" },
+  { key: key("ai", "youtube", "@aiexplained-official"), niche: "ai", platform: "youtube", handle: "@aiexplained-official", channelId: "UCNJ1Ymd5yFuUPtn21xtRbbw", label: "AI Explained", detail: "Análises profundas", externalUrl: "https://youtube.com/@aiexplained-official" },
+  { key: key("ai", "youtube", "@mreflow"), niche: "ai", platform: "youtube", handle: "@mreflow", channelId: "UChpleBmo18P08aKCIgti38g", label: "Matt Wolfe", detail: "Weekly roundup", externalUrl: "https://youtube.com/@mreflow" },
+  // TikTok (3)
+  { key: key("ai", "tiktok", "openai"), niche: "ai", platform: "tiktok", handle: "openai", label: "OpenAI", externalUrl: "https://tiktok.com/@openai" },
+  { key: key("ai", "tiktok", "perplexity.ai"), niche: "ai", platform: "tiktok", handle: "perplexity.ai", label: "Perplexity", externalUrl: "https://tiktok.com/@perplexity.ai" },
+  { key: key("ai", "tiktok", "anthropic"), niche: "ai", platform: "tiktok", handle: "anthropic", label: "Anthropic", externalUrl: "https://tiktok.com/@anthropic" },
+  // Threads (3)
+  { key: key("ai", "threads", "openai"), niche: "ai", platform: "threads", handle: "openai", label: "OpenAI", externalUrl: "https://threads.net/@openai" },
+  { key: key("ai", "threads", "anthropicai"), niche: "ai", platform: "threads", handle: "anthropicai", label: "Anthropic", externalUrl: "https://threads.net/@anthropicai" },
+  { key: key("ai", "threads", "perplexity.ai"), niche: "ai", platform: "threads", handle: "perplexity.ai", label: "Perplexity", externalUrl: "https://threads.net/@perplexity.ai" },
+  // Twitter/X (3)
+  { key: key("ai", "twitter", "OpenAI"), niche: "ai", platform: "twitter", handle: "OpenAI", label: "OpenAI", externalUrl: "https://twitter.com/OpenAI" },
+  { key: key("ai", "twitter", "AnthropicAI"), niche: "ai", platform: "twitter", handle: "AnthropicAI", label: "Anthropic", externalUrl: "https://twitter.com/AnthropicAI" },
+  { key: key("ai", "twitter", "sama"), niche: "ai", platform: "twitter", handle: "sama", label: "Sam Altman", detail: "CEO OpenAI", externalUrl: "https://twitter.com/sama" },
+  // RSS Notícias (3)
+  { key: key("ai", "rss", "anthropic-news"), niche: "ai", platform: "rss", handle: "https://www.anthropic.com/news/rss", label: "Anthropic News", lang: "en", externalUrl: "https://www.anthropic.com/news" },
+  { key: key("ai", "rss", "openai-blog"), niche: "ai", platform: "rss", handle: "https://openai.com/blog/rss.xml", label: "OpenAI Blog", lang: "en", externalUrl: "https://openai.com/blog" },
+  { key: key("ai", "rss", "venturebeat-ai"), niche: "ai", platform: "rss", handle: "https://venturebeat.com/category/ai/feed/", label: "VentureBeat AI", lang: "en", externalUrl: "https://venturebeat.com/category/ai" },
+  // Newsletter (3)
+  { key: key("ai", "newsletter", "rundown"), niche: "ai", platform: "newsletter", handle: "rundown@therundown.ai", label: "The Rundown AI", detail: "Daily AI digest", sender: "rundown@therundown.ai", externalUrl: "https://www.therundown.ai/" },
+  { key: key("ai", "newsletter", "tldr-ai"), niche: "ai", platform: "newsletter", handle: "ai@tldr.tech", label: "TLDR AI", detail: "5-min daily", sender: "ai@tldr.tech", externalUrl: "https://tldr.tech/ai" },
+  { key: key("ai", "newsletter", "bensbites"), niche: "ai", platform: "newsletter", handle: "ben@bensbites.com", label: "Ben's Bites", detail: "AI news + tools", sender: "ben@bensbites.com", externalUrl: "https://bensbites.com/" },
+];
+
+// ─── Lookup ────────────────────────────────────────────────────────────
+
+export const ALL_CURATED: CuratedSource[] = [...CRYPTO, ...MARKETING, ...AI];
+
+export function getCuratedSourcesByNiche(niche: CuratedNiche): CuratedSource[] {
+  return ALL_CURATED.filter((s) => s.niche === niche);
+}
+
+export function getCuratedByPlatform(
+  niche: CuratedNiche,
+  platform: CuratedPlatform,
+): CuratedSource[] {
+  return ALL_CURATED.filter((s) => s.niche === niche && s.platform === platform);
+}
+
+// ─── Backward-compat: shape antiga usada em /app/_components/* e brief ──
+// Mantém legado funcionando enquanto novas tabs leem `getCuratedSourcesByNiche`.
+
+export interface CuratedSourcesLegacy {
+  niche: string;
   igHandles: Array<{ handle: string; label: string; followers?: string }>;
-  youtubeChannels: Array<{
-    channelId?: string;
-    handle: string;
-    label: string;
-    rssUrl?: string;
-  }>;
+  youtubeChannels: Array<{ channelId?: string; handle: string; label: string; rssUrl?: string }>;
   newsRss: Array<{ name: string; url: string; lang: "pt" | "en" }>;
   newsletterSubscribe: Array<{ name: string; subscribeUrl: string; sender?: string }>;
 }
 
-// ─── CRYPTO ─────────────────────────────────────────────────────────────
-
-export const CRYPTO_SOURCES: CuratedSources = {
-  niche: "crypto",
-  igHandles: [
-    { handle: "investidor4.20", label: "Lucas Amendola · Bitcoin BR", followers: "300k+" },
-    { handle: "leobueno_", label: "Leo Bueno · cripto fundamento", followers: "100k+" },
-    { handle: "anitarodrigues.crypto", label: "Anita Rodrigues · DeFi" },
-    { handle: "mercadobitcoin", label: "Mercado Bitcoin (institucional)" },
-    { handle: "binance", label: "Binance (global)" },
-    { handle: "coinbase", label: "Coinbase" },
-    { handle: "vitalik.eth", label: "Vitalik Buterin" },
-    { handle: "documentingbtc", label: "Documenting Bitcoin" },
-  ],
-  // Handles alinhados com `lib/youtube-channels.ts` (fonte de verdade
-  // pro RSS scrape). Match no brief é case-insensitive.
-  youtubeChannels: [
-    { handle: "@CoinBureau", label: "Coin Bureau" },
-    { handle: "@Bankless", label: "Bankless" },
-    { handle: "@intothecryptoverse", label: "Into The Cryptoverse" },
-    { handle: "@AltcoinDaily", label: "Altcoin Daily" },
-    { handle: "@TheCryptoLark", label: "The Crypto Lark" },
-    { handle: "@CryptoBanter", label: "Crypto Banter" },
-    { handle: "@DigitalAssetNews", label: "Digital Asset News" },
-    { handle: "@BitBoyCrypto", label: "BitBoy Crypto" },
-    { handle: "@AndreiJikh", label: "Andrei Jikh" },
-    { handle: "@GrahamStephan", label: "Graham Stephan" },
-    { handle: "@AnthonyPompliano", label: "Anthony Pompliano" },
-    { handle: "@WhiteboardCrypto", label: "Whiteboard Crypto" },
-    { handle: "@augustobackes", label: "Augusto Backes (BR)" },
-  ],
-  newsRss: [
-    { name: "Cointelegraph BR", url: "https://br.cointelegraph.com/rss", lang: "pt" },
-    { name: "Portal do Bitcoin", url: "https://portaldobitcoin.uol.com.br/feed/", lang: "pt" },
-    { name: "Livecoins", url: "https://livecoins.com.br/feed/", lang: "pt" },
-    { name: "CoinDesk", url: "https://www.coindesk.com/arc/outboundfeeds/rss/", lang: "en" },
-    { name: "The Block", url: "https://www.theblock.co/rss.xml", lang: "en" },
-    { name: "Decrypt", url: "https://decrypt.co/feed", lang: "en" },
-    { name: "Bitcoin Magazine", url: "https://bitcoinmagazine.com/.rss/full/", lang: "en" },
-  ],
-  newsletterSubscribe: [
-    {
-      name: "Resumo Criptoverso (Defiverso · Lucas Amendola)",
-      subscribeUrl: "https://defiverso.kaleidos.com.br/newsletter",
-      sender: "lucas@defiverso.com.br",
-    },
-    { name: "Bankless", subscribeUrl: "https://www.bankless.com/", sender: "newsletter@bankless.com" },
-    { name: "The Defiant", subscribeUrl: "https://thedefiant.io/", sender: "thedefiant@thedefiant.io" },
-    { name: "Bitcoin Magazine", subscribeUrl: "https://bitcoinmagazine.com/newsletter", sender: "newsletter@bitcoinmagazine.com" },
-    { name: "Blockworks Daily", subscribeUrl: "https://blockworks.co/newsletter/daily", sender: "daily@blockworks.co" },
-    { name: "Milk Road", subscribeUrl: "https://milkroad.com/", sender: "kyle@milkroad.com" },
-  ],
-};
-
-// ─── MARKETING ──────────────────────────────────────────────────────────
-
-export const MARKETING_SOURCES: CuratedSources = {
-  niche: "marketing",
-  igHandles: [
-    { handle: "leadgenman", label: "Marc Lousada · LinkedIn growth" },
-    { handle: "tenfoldmarc", label: "Marc · ten-fold marketing" },
-    { handle: "matheus.chibebe", label: "Matheus Chibebe · social BR" },
-    { handle: "hormozi", label: "Alex Hormozi · business" },
-    { handle: "garyvee", label: "Gary Vaynerchuk" },
-    { handle: "blakeandersonw", label: "Blake Anderson · ads/founders" },
-    { handle: "justinwelsh", label: "Justin Welsh · solopreneur" },
-    { handle: "neilpatel", label: "Neil Patel · SEO" },
-  ],
-  // Handles alinhados com `lib/youtube-channels.ts`. Brief lookup é
-  // case-insensitive.
-  youtubeChannels: [
-    { handle: "@AlexHormozi", label: "Alex Hormozi" },
-    { handle: "@garyvee", label: "GaryVee" },
-    { handle: "@neilpatel", label: "Neil Patel · SEO/growth" },
-    { handle: "@AhrefsCom", label: "Ahrefs" },
-    { handle: "@IncomeSchool", label: "Income School" },
-    { handle: "@fellipetoledo", label: "Fellipe Toledo (BR)" },
-    { handle: "@ColinandSamir", label: "Colin and Samir · creator econ" },
-  ],
-  newsRss: [
-    { name: "Marketing Brew", url: "https://www.marketingbrew.com/feed", lang: "en" },
-    { name: "Search Engine Land", url: "https://searchengineland.com/feed", lang: "en" },
-    { name: "HubSpot Blog", url: "https://blog.hubspot.com/marketing/rss.xml", lang: "en" },
-    { name: "MeioMensagem (BR)", url: "https://www.meioemensagem.com.br/feed/", lang: "pt" },
-    { name: "B9 (BR)", url: "https://www.b9.com.br/feed/", lang: "pt" },
-    { name: "Mercado e Consumo", url: "https://mercadoeconsumo.com.br/feed/", lang: "pt" },
-  ],
-  newsletterSubscribe: [
-    { name: "Marketing Brew", subscribeUrl: "https://www.marketingbrew.com/subscribe", sender: "newsletter@morningbrew.com" },
-    { name: "Demand Curve", subscribeUrl: "https://demandcurve.com/newsletter", sender: "founders@demandcurve.com" },
-    { name: "Stacked Marketer", subscribeUrl: "https://stackedmarketer.com/", sender: "newsletter@stackedmarketer.com" },
-    { name: "Why We Buy (Katelyn Bourgoin)", subscribeUrl: "https://whywebuy.beehiiv.com/", sender: "katelyn@whywebuy.co" },
-    { name: "GrowthHackers", subscribeUrl: "https://growthhackers.com/newsletter", sender: "newsletter@growthhackers.com" },
-  ],
-};
-
-// ─── IA ────────────────────────────────────────────────────────────────
-
-export const AI_SOURCES: CuratedSources = {
-  niche: "ai",
-  igHandles: [
-    { handle: "ogmadureira", label: "Gabriel Madureira · vibe coding/IA" },
-    { handle: "hugodoria", label: "Hugo Doria · IA prática" },
-    { handle: "openai", label: "OpenAI" },
-    { handle: "anthropicai", label: "Anthropic" },
-    { handle: "aitruth", label: "AI Truth · curadoria" },
-    { handle: "filiperomero", label: "Filipe Romero · agentes IA" },
-    { handle: "lex.fridman", label: "Lex Fridman" },
-    { handle: "perplexity.ai", label: "Perplexity" },
-    { handle: "google", label: "Google · Gemini/AI" },
-    { handle: "huggingface", label: "Hugging Face" },
-  ],
-  // Handles alinhados com `lib/youtube-channels.ts` (que é a fonte de
-  // verdade pro RSS scrape). Match no brief é case-insensitive, então
-  // qualquer underscore/case-style passa, mas mantenho idêntico pro DX.
-  youtubeChannels: [
-    { handle: "@matthew_berman", label: "Matthew Berman · daily AI" },
-    { handle: "@AIJasonZ", label: "AI Jason · agentes/builds" },
-    { handle: "@aiexplained-official", label: "AI Explained" },
-    { handle: "@WesRoth", label: "Wes Roth · OpenAI/news" },
-    { handle: "@Fireship", label: "Fireship · dev/AI rapidinho" },
-    { handle: "@lexfridman", label: "Lex Fridman · podcast" },
-    { handle: "@DwarkeshPatel", label: "Dwarkesh Patel · entrevistas" },
-    { handle: "@AllAboutAI", label: "All About AI · tutoriais" },
-    { handle: "@samwitteveenai", label: "Sam Witteveen · LLM dev" },
-    { handle: "@mreflow", label: "Matt Wolfe · weekly roundup" },
-  ],
-  newsRss: [
-    { name: "Hugging Face Blog", url: "https://huggingface.co/blog/feed.xml", lang: "en" },
-    { name: "Anthropic News", url: "https://www.anthropic.com/news/rss", lang: "en" },
-    { name: "OpenAI Blog", url: "https://openai.com/blog/rss.xml", lang: "en" },
-    { name: "DeepMind Blog", url: "https://deepmind.com/blog/feed/basic", lang: "en" },
-    { name: "MIT Tech Review AI", url: "https://www.technologyreview.com/topic/artificial-intelligence/feed", lang: "en" },
-    { name: "VentureBeat AI", url: "https://venturebeat.com/category/ai/feed/", lang: "en" },
-  ],
-  newsletterSubscribe: [
-    { name: "The Rundown AI", subscribeUrl: "https://www.therundown.ai/", sender: "rundown@therundown.ai" },
-    { name: "Ben's Bites", subscribeUrl: "https://bensbites.com/", sender: "ben@bensbites.com" },
-    { name: "TLDR AI", subscribeUrl: "https://tldr.tech/ai", sender: "ai@tldr.tech" },
-    { name: "Import AI (Jack Clark)", subscribeUrl: "https://importai.substack.com/", sender: "jack@importai.com" },
-    { name: "AlphaSignal", subscribeUrl: "https://alphasignal.ai/", sender: "newsletter@alphasignal.ai" },
-  ],
-};
-
-// ─── Lookup ────────────────────────────────────────────────────────────
-
-export const ALL_CURATED_SOURCES: Record<string, CuratedSources> = {
-  crypto: CRYPTO_SOURCES,
-  marketing: MARKETING_SOURCES,
-  ai: AI_SOURCES,
-};
-
-export function getCuratedSources(nicheId: string): CuratedSources | null {
-  return ALL_CURATED_SOURCES[nicheId] ?? null;
+export function getCuratedSources(nicheId: string): CuratedSourcesLegacy | null {
+  if (nicheId !== "crypto" && nicheId !== "marketing" && nicheId !== "ai") return null;
+  const niche = nicheId as CuratedNiche;
+  return {
+    niche,
+    igHandles: getCuratedByPlatform(niche, "instagram").map((s) => ({
+      handle: s.handle,
+      label: s.label,
+      followers: s.detail,
+    })),
+    youtubeChannels: getCuratedByPlatform(niche, "youtube").map((s) => ({
+      handle: s.handle,
+      label: s.label,
+      channelId: s.channelId,
+    })),
+    newsRss: getCuratedByPlatform(niche, "rss").map((s) => ({
+      name: s.label,
+      url: s.handle,
+      lang: s.lang ?? "en",
+    })),
+    newsletterSubscribe: getCuratedByPlatform(niche, "newsletter").map((s) => ({
+      name: s.label,
+      subscribeUrl: s.externalUrl ?? "#",
+      sender: s.sender,
+    })),
+  };
 }

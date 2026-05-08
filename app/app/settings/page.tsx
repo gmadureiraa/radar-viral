@@ -1,15 +1,18 @@
 "use client";
 
 /**
- * /app/settings — gerenciar nicho ativo, MINHAS FONTES (CRUD via /api/sources)
- * e visualizar catálogo curado.
+ * /app/settings — gerenciar nicho ativo + fontes (Minhas + Curadas).
  *
- * Pro user: tracked_sources com user_id existem, dropdown de ações por fonte.
- * Free user: explica que precisa Pro pra ter cron individual + mostra catálogo
- * curado como referência (mesmas fontes que entram automaticamente ao pagar).
+ * Estrutura:
+ *  1. Header: título + nicho selector + plano badge (Free X/3)
+ *  2. Botão "Adicionar fonte" (modal)
+ *  3. Tabs por plataforma (Todas + 7 plataformas)
+ *  4. Lista unificada: minhas fontes + curadas do nicho (com toggle).
+ *     Avatar, label, badge "Minha"/"Curada", ações (toggle/edit/delete).
+ *  5. Modal "Adicionar fonte" — select plataforma + handle + display name.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Instagram,
   Youtube,
@@ -17,7 +20,6 @@ import {
   Mail,
   Lock,
   Sparkles,
-  Check,
   Plus,
   Loader2,
   X,
@@ -26,86 +28,82 @@ import {
   Music2,
   AtSign,
   Hash,
+  Rss,
+  ExternalLink,
+  Trash2,
+  CheckCircle2,
+  Layers,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useActiveNiche } from "@/lib/niche-context";
-import { getCuratedSources } from "@/lib/sources-curated";
+import {
+  ALL_CURATED,
+  getCuratedByPlatform,
+  type CuratedSource,
+  type CuratedNiche,
+  type CuratedPlatform,
+} from "@/lib/sources-curated";
 import { useNeonSession, getJwtToken } from "@/lib/auth-client";
-import { SourceActionsMenu } from "@/components/source-actions-menu";
 import { NichePillBar } from "@/app/app/_components/niche-pill-bar";
 import type { UserSourceRow } from "@/app/api/sources/route";
 
-type Category =
-  | "ig"
-  | "youtube"
-  | "tiktok"
-  | "threads"
-  | "twitter"
-  | "news"
-  | "newsletter";
+// ─── Types e mapeamentos ──────────────────────────────────────────────
 
-const CATEGORY_TO_PLATFORM: Record<Category, string> = {
-  ig: "instagram",
-  youtube: "youtube",
-  tiktok: "tiktok",
-  threads: "threads",
-  twitter: "twitter",
-  news: "rss",
-  newsletter: "newsletter",
-};
+type PlatformTab = "all" | CuratedPlatform;
 
-const PLATFORM_TO_CATEGORY: Record<string, Category> = {
-  instagram: "ig",
-  youtube: "youtube",
-  tiktok: "tiktok",
-  threads: "threads",
-  twitter: "twitter",
-  rss: "news",
-  newsletter: "newsletter",
-};
-
-type CategoryCounts = Record<Category, number>;
-
-const ZERO_COUNTS: CategoryCounts = {
-  ig: 0,
-  youtube: 0,
-  tiktok: 0,
-  threads: 0,
-  twitter: 0,
-  news: 0,
-  newsletter: 0,
-};
-
-function categoryIcon(c: Category): typeof Instagram {
-  if (c === "ig") return Instagram;
-  if (c === "youtube") return Youtube;
-  if (c === "tiktok") return Music2;
-  if (c === "threads") return AtSign;
-  if (c === "twitter") return Hash;
-  if (c === "news") return Newspaper;
-  return Mail;
-}
-
-function categoryLabel(c: Category): string {
-  if (c === "ig") return "Instagram";
-  if (c === "youtube") return "YouTube";
-  if (c === "tiktok") return "TikTok";
-  if (c === "threads") return "Threads";
-  if (c === "twitter") return "X / Twitter";
-  if (c === "news") return "RSS Notícias";
-  return "Newsletters";
-}
-
-const ALL_CATEGORIES: Category[] = [
-  "ig",
+const PLATFORM_TABS: PlatformTab[] = [
+  "all",
+  "instagram",
   "youtube",
   "tiktok",
   "threads",
   "twitter",
-  "news",
+  "rss",
   "newsletter",
 ];
+
+function platformLabel(p: PlatformTab): string {
+  switch (p) {
+    case "all":
+      return "Todas";
+    case "instagram":
+      return "Instagram";
+    case "youtube":
+      return "YouTube";
+    case "tiktok":
+      return "TikTok";
+    case "threads":
+      return "Threads";
+    case "twitter":
+      return "X / Twitter";
+    case "rss":
+      return "RSS";
+    case "newsletter":
+      return "Newsletter";
+  }
+}
+
+function platformIcon(p: PlatformTab): typeof Instagram {
+  switch (p) {
+    case "all":
+      return Layers;
+    case "instagram":
+      return Instagram;
+    case "youtube":
+      return Youtube;
+    case "tiktok":
+      return Music2;
+    case "threads":
+      return AtSign;
+    case "twitter":
+      return Hash;
+    case "rss":
+      return Rss;
+    case "newsletter":
+      return Mail;
+  }
+}
 
 interface SubInfo {
   plan: "free" | "pro" | "max";
@@ -113,36 +111,35 @@ interface SubInfo {
   isPaid: boolean;
 }
 
+// ─── Página ────────────────────────────────────────────────────────────
+
 export default function SettingsPage() {
   const session = useNeonSession();
   const { active } = useActiveNiche();
-  const [tab, setTab] = useState<Category>("ig");
+  const [tab, setTab] = useState<PlatformTab>("all");
   const [mySources, setMySources] = useState<UserSourceRow[]>([]);
-  const [loadingMine, setLoadingMine] = useState(false);
-  const [editing, setEditing] = useState<UserSourceRow | null>(null);
+  const [disabledCuratedKeys, setDisabledCuratedKeys] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState(false);
   const [sub, setSub] = useState<SubInfo | null>(null);
 
-  // Caps por plano — espelha lib/pricing.ts maxTotalSources
   const totalCap = sub?.plan === "max" ? 100 : sub?.plan === "pro" ? 60 : 3;
   const planLabel = sub?.plan === "max" ? "Max" : sub?.plan === "pro" ? "Pro" : "Free";
   const isPaid = sub?.isPaid ?? false;
+  const totalUsed = mySources.length;
+  const totalRemaining = Math.max(0, totalCap - totalUsed);
+  const totalCapReached = totalUsed >= totalCap;
 
-  const sources = getCuratedSources(active.id);
-  const counts: CategoryCounts = sources
-    ? {
-        ...ZERO_COUNTS,
-        ig: sources.igHandles.length,
-        youtube: sources.youtubeChannels.length,
-        news: sources.newsRss.length,
-        newsletter: sources.newsletterSubscribe.length,
-      }
-    : ZERO_COUNTS;
+  // Curadas do nicho ativo (filtra por nicho selecionado)
+  const curatedForNiche = useMemo(() => {
+    if (!["crypto", "marketing", "ai"].includes(active.id)) return [];
+    return ALL_CURATED.filter((c) => c.niche === (active.id as CuratedNiche));
+  }, [active.id]);
 
-  // Carrega fontes individuais do user
+  // Fetch fontes do user
   const refreshMine = async () => {
     if (!session.data?.user) return;
-    setLoadingMine(true);
+    setLoading(true);
     try {
       const jwt = await getJwtToken();
       const res = await fetch(`/api/sources?niche=${active.id}`, {
@@ -151,26 +148,41 @@ export default function SettingsPage() {
       if (res.ok) {
         const data = (await res.json()) as { sources: UserSourceRow[] };
         setMySources(data.sources ?? []);
-      } else if (res.status === 401) {
-        // Token expirou — silencioso, sessão vai redirecionar pra landing
-      } else {
-        // Outras falhas dão feedback no toast
+      } else if (res.status !== 401) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
-        toast.error(data.error ?? `Falha ao carregar fontes (${res.status})`);
+        toast.error(data.error ?? `Falha ao carregar (${res.status})`);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro de rede");
     } finally {
-      setLoadingMine(false);
+      setLoading(false);
+    }
+  };
+
+  // Fetch curadas desativadas
+  const refreshDisabledCurated = async () => {
+    if (!session.data?.user) return;
+    try {
+      const jwt = await getJwtToken();
+      const res = await fetch("/api/sources/curated", {
+        headers: jwt ? { Authorization: `Bearer ${jwt}` } : undefined,
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { disabled: string[] };
+        setDisabledCuratedKeys(new Set(data.disabled ?? []));
+      }
+    } catch {
+      /* silencioso, default = nenhuma desabilitada */
     }
   };
 
   useEffect(() => {
     void refreshMine();
+    void refreshDisabledCurated();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.data?.user?.id, active.id]);
 
-  // Carrega subscription do user — fonte da verdade pra gates
+  // Subscription
   useEffect(() => {
     if (!session.data?.user?.id) {
       setSub({ plan: "free", status: "active", isPaid: false });
@@ -199,22 +211,16 @@ export default function SettingsPage() {
     };
   }, [session.data?.user?.id]);
 
-  const myByCategory = (cat: Category) =>
-    mySources.filter((s) => s.platform === CATEGORY_TO_PLATFORM[cat]);
-
   const handleToggleActive = async (s: UserSourceRow) => {
     try {
       const jwt = await getJwtToken();
       const res = await fetch("/api/sources", {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
-        },
+        headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
         body: JSON.stringify({ id: s.id, active: !s.active }),
       });
       if (!res.ok) throw new Error("Falha");
-      toast.success(s.active ? "Fonte pausada" : "Fonte ativada");
+      toast.success(s.active ? "Pausada" : "Ativada");
       void refreshMine();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro");
@@ -222,6 +228,7 @@ export default function SettingsPage() {
   };
 
   const handleDelete = async (s: UserSourceRow) => {
+    if (!window.confirm(`Excluir @${s.handle}?`)) return;
     try {
       const jwt = await getJwtToken();
       const res = await fetch(`/api/sources?id=${s.id}`, {
@@ -229,314 +236,154 @@ export default function SettingsPage() {
         headers: jwt ? { Authorization: `Bearer ${jwt}` } : undefined,
       });
       if (!res.ok) throw new Error("Falha ao excluir");
-      toast.success("Fonte removida");
+      toast.success("Removida");
       void refreshMine();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro");
     }
   };
 
-  // Toda conta (Free incluso) tem cron individual desde 2026-05-08.
-  // Free=3 fontes total, Pro=60, Max=100. Settings sempre mostra "Minhas
-  // fontes". Banner de upgrade aparece pra Free, mas sem bloqueio.
-  const hasIndividualCron = true;
-  const totalUsed = mySources.length;
-  const totalRemaining = Math.max(0, totalCap - totalUsed);
-  const totalCapReached = totalUsed >= totalCap;
+  const handleToggleCurated = async (key: string, currentlyDisabled: boolean) => {
+    const newDisabled = !currentlyDisabled;
+    // optimistic
+    setDisabledCuratedKeys((prev) => {
+      const next = new Set(prev);
+      if (newDisabled) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+    try {
+      const jwt = await getJwtToken();
+      const res = await fetch("/api/sources/curated", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
+        body: JSON.stringify({ key, disabled: newDisabled }),
+      });
+      if (!res.ok) throw new Error("Falha");
+      toast.success(newDisabled ? "Curada desativada" : "Curada ativada");
+    } catch (err) {
+      // rollback
+      setDisabledCuratedKeys((prev) => {
+        const next = new Set(prev);
+        if (currentlyDisabled) next.add(key);
+        else next.delete(key);
+        return next;
+      });
+      toast.error(err instanceof Error ? err.message : "Erro");
+    }
+  };
+
+  // Filtro por tab (plataforma)
+  const filteredMine = mySources.filter((s) =>
+    tab === "all" ? true : s.platform === platformBackendKey(tab),
+  );
+  const filteredCurated = curatedForNiche.filter((c) =>
+    tab === "all" ? true : c.platform === tab,
+  );
 
   return (
     <main style={{ padding: "32px 28px 80px", maxWidth: 1280, margin: "0 auto" }}>
       <div className="rdv-eyebrow" style={{ marginBottom: 6 }}>
         <span className="rdv-rec-dot" /> CONFIGURAÇÕES
       </div>
-      <h1
-        className="rdv-display"
-        style={{
-          fontSize: "clamp(32px, 4vw, 48px)",
-          lineHeight: 1.05,
-          letterSpacing: "-0.02em",
-          marginBottom: 6,
-        }}
-      >
-        Suas <em>fontes</em>.
-      </h1>
-      <p
-        style={{
-          fontSize: 14,
-          color: "var(--color-rdv-muted)",
-          marginBottom: 18,
-        }}
-      >
-        Escolha o nicho e veja quais fontes alimentam seu brief diário.
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 16, marginBottom: 14 }}>
+        <h1 className="rdv-display" style={{ fontSize: "clamp(32px, 4vw, 48px)", lineHeight: 1.05, letterSpacing: "-0.02em" }}>
+          Suas <em>fontes</em>.
+        </h1>
+        <PlanBadge plan={planLabel} used={totalUsed} cap={totalCap} reached={totalCapReached} />
+      </div>
+      <p style={{ fontSize: 14, color: "var(--color-rdv-muted)", marginBottom: 20, maxWidth: 720 }}>
+        Adicione contas que você quer monitorar (cap {totalCap} no {planLabel}).
+        Curadas são fontes pré-selecionadas Kaleidos do nicho — pode desativar
+        se não quer no seu radar.
       </p>
 
-      {/* Niche switcher: pills compactas (consistente com dashboard) */}
       <NichePillBar />
 
-      {/* Banner de plano — info-only no Free, sem bloqueio */}
-      {!isPaid && sub && (
-        <section style={{ marginBottom: 28 }}>
-          <div
-            className="rdv-card"
-            style={{
-              padding: "16px 20px",
-              display: "flex",
-              alignItems: "center",
-              gap: 14,
-              borderColor: totalCapReached
-                ? "var(--color-rdv-rec)"
-                : "var(--color-rdv-amber)",
-              boxShadow: totalCapReached
-                ? "4px 4px 0 0 var(--color-rdv-rec)"
-                : "4px 4px 0 0 var(--color-rdv-amber)",
-              flexWrap: "wrap",
-            }}
-          >
-            <Lock
-              size={18}
-              style={{
-                color: totalCapReached
-                  ? "var(--color-rdv-rec)"
-                  : "var(--color-rdv-amber)",
-                flexShrink: 0,
-              }}
-            />
-            <div style={{ flex: 1, minWidth: 220 }}>
-              <div style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 2 }}>
-                Plano Free · {totalUsed}/{totalCap} fontes usadas
-              </div>
-              <p
-                style={{
-                  fontSize: 12.5,
-                  color: "var(--color-rdv-muted)",
-                  lineHeight: 1.5,
-                }}
-              >
-                {totalCapReached
-                  ? "Limite atingido. Remova alguma ou faça upgrade pro Pro pra cadastrar até 60 fontes."
-                  : `Adicione até ${totalCap} fontes (qualquer plataforma). Pro libera 60 fontes + edição livre + briefs ilimitados.`}
-              </p>
-            </div>
-            <Link
-              href="/app/precos"
-              className="rdv-btn rdv-btn-rec"
-              style={{ padding: "8px 14px", fontSize: 10, whiteSpace: "nowrap" }}
-            >
-              <Sparkles size={11} /> Ver Pro
-            </Link>
+      {/* Free upgrade nudge — só quando perto do cap */}
+      {!isPaid && totalCapReached && (
+        <div className="rdv-card" style={{ padding: "14px 18px", marginTop: 18, marginBottom: 14, display: "flex", alignItems: "center", gap: 14, borderColor: "var(--color-rdv-rec)", boxShadow: "4px 4px 0 0 var(--color-rdv-rec)", flexWrap: "wrap" }}>
+          <Lock size={18} style={{ color: "var(--color-rdv-rec)", flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700 }}>Limite Free atingido</div>
+            <p style={{ fontSize: 12.5, color: "var(--color-rdv-muted)", lineHeight: 1.5 }}>
+              Você usou {totalUsed}/{totalCap} fontes. Pro libera 60 + edição livre + briefs ilimitados.
+            </p>
           </div>
-        </section>
+          <Link href="/app/precos" className="rdv-btn rdv-btn-rec" style={{ padding: "8px 14px", fontSize: 10, whiteSpace: "nowrap" }}>
+            <Sparkles size={11} /> Ver Pro
+          </Link>
+        </div>
       )}
 
-      {/* MINHAS FONTES — todo usuário (Free 3, Pro 60, Max 100) */}
-      {hasIndividualCron && (
-        <section style={{ marginBottom: 36 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "baseline",
-              gap: 12,
-              marginBottom: 12,
-              flexWrap: "wrap",
-            }}
-          >
-            <div className="rdv-eyebrow">
-              <span className="rdv-rec-dot" /> MINHAS FONTES ·{" "}
-              {active.label.toUpperCase()}
-            </div>
-            <span
-              className="rdv-mono"
-              style={{
-                fontSize: 10,
-                color: "var(--color-rdv-muted)",
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-              }}
-            >
-              {totalUsed}/{totalCap} fontes ({planLabel})
-              {" · "}
-              {mySources.filter((s) => s.active).length} ativa
-              {mySources.filter((s) => s.active).length === 1 ? "" : "s"}
-            </span>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              gap: 6,
-              marginBottom: 14,
-              flexWrap: "wrap",
-            }}
-          >
-            <CategoryChips
-              tab={tab}
-              onChange={setTab}
-              counts={{
-                ig: myByCategory("ig").length,
-                youtube: myByCategory("youtube").length,
-                tiktok: myByCategory("tiktok").length,
-                threads: myByCategory("threads").length,
-                twitter: myByCategory("twitter").length,
-                news: myByCategory("news").length,
-                newsletter: myByCategory("newsletter").length,
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => {
-                if (totalCapReached) {
-                  toast.error(
-                    isPaid
-                      ? `Limite ${planLabel} atingido (${totalCap}). Remova fontes pra adicionar.`
-                      : `Limite Free (${totalCap} fontes) atingido. Remova ou faça upgrade pro Pro.`,
-                  );
-                  return;
-                }
-                setAdding(true);
-              }}
-              disabled={totalCapReached}
-              className="rdv-btn rdv-btn-rec"
-              style={{
-                padding: "8px 14px",
-                fontSize: 11,
-                marginLeft: "auto",
-                opacity: totalCapReached ? 0.5 : 1,
-                cursor: totalCapReached ? "not-allowed" : "pointer",
-              }}
-            >
-              <Plus size={12} /> Adicionar
-              {totalRemaining > 0 && totalRemaining <= 3 && !isPaid ? (
-                <span style={{ opacity: 0.7, marginLeft: 4 }}>
-                  ({totalRemaining} restante{totalRemaining === 1 ? "" : "s"})
-                </span>
-              ) : null}
-            </button>
-          </div>
-
-          {loadingMine && mySources.length === 0 && (
-            <div style={{ padding: 32, display: "flex", justifyContent: "center" }}>
-              <Loader2 size={20} className="rdv-spin" />
-            </div>
-          )}
-
-          <MyCategoryGrid
-            tab={tab}
-            sources={myByCategory(tab)}
-            onToggle={handleToggleActive}
-            onEdit={(s) => setEditing(s)}
-            onDelete={handleDelete}
-          />
-        </section>
-      )}
-
-      {/* Catálogo de fontes (sempre visível) */}
-      {sources && (
-        <section>
-          <div className="rdv-eyebrow" style={{ marginBottom: 10 }}>
-            CATÁLOGO CURADO · {active.label.toUpperCase()}
-          </div>
-          <p
-            style={{
-              fontSize: 13,
-              color: "var(--color-rdv-muted)",
-              marginBottom: 16,
-              maxWidth: 720,
-            }}
-          >
-            {hasIndividualCron
-              ? "Fontes pré-cadastradas pela curadoria Kaleidos. Use a aba “Minhas fontes” acima pra ativar/desativar."
-              : "Estas são as fontes que entram automaticamente quando você assinar o Pro."}
-          </p>
-
-          <CategoryChips
-            tab={tab}
-            onChange={setTab}
-            counts={counts}
-          />
-
-          <div style={{ marginTop: 16 }}>
-            {tab === "ig" && (
-              <CatalogGrid
-                items={sources.igHandles.map((h) => ({
-                  key: h.handle,
-                  title: `@${h.handle}`,
-                  subtitle: h.label,
-                  detail: h.followers ? `${h.followers} seguidores` : undefined,
-                  href: `https://instagram.com/${h.handle}`,
-                  icon: <Instagram size={14} />,
-                }))}
-              />
-            )}
-            {tab === "youtube" && (
-              <CatalogGrid
-                items={sources.youtubeChannels.map((c) => ({
-                  key: c.handle,
-                  title: c.handle,
-                  subtitle: c.label,
-                  href: `https://youtube.com/${c.handle}`,
-                  icon: <Youtube size={14} />,
-                }))}
-              />
-            )}
-            {tab === "news" && (
-              <CatalogGrid
-                items={sources.newsRss.map((r) => ({
-                  key: r.url,
-                  title: r.name,
-                  subtitle: r.url,
-                  detail: r.lang === "pt" ? "🇧🇷 PT" : "🇺🇸 EN",
-                  href: r.url,
-                  icon: <Newspaper size={14} />,
-                }))}
-              />
-            )}
-            {tab === "newsletter" && (
-              <CatalogGrid
-                items={sources.newsletterSubscribe.map((nl) => ({
-                  key: nl.subscribeUrl,
-                  title: nl.name,
-                  subtitle: nl.sender,
-                  detail: "Cadastre seu Gmail trackado",
-                  href: nl.subscribeUrl,
-                  icon: <Mail size={14} />,
-                  cta: "Assinar →",
-                }))}
-              />
-            )}
-            {(tab === "tiktok" || tab === "threads" || tab === "twitter") && (
-              <div
-                className="rdv-card"
-                style={{
-                  padding: 20,
-                  fontSize: 12.5,
-                  color: "var(--color-rdv-muted)",
-                  lineHeight: 1.55,
-                }}
-              >
-                {categoryLabel(tab)} ainda não tem catálogo curado pelo time
-                Kaleidos. Adicione perfis manualmente em <strong>Minhas
-                fontes</strong> acima — o cron diário vai começar a
-                rastrear amanhã.
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* Modais */}
-      {editing && (
-        <EditSourceModal
-          source={editing}
-          onClose={() => setEditing(null)}
-          onSaved={() => {
-            setEditing(null);
-            void refreshMine();
+      {/* Adicionar */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 22, marginBottom: 12, gap: 12, flexWrap: "wrap" }}>
+        <PlatformTabsBar tab={tab} onChange={setTab} mine={mySources} curated={curatedForNiche} />
+        <button
+          type="button"
+          onClick={() => {
+            if (totalCapReached) {
+              toast.error(`Limite ${planLabel} (${totalCap}) atingido. Remova fontes ou faça upgrade.`);
+              return;
+            }
+            setAdding(true);
           }}
-        />
+          disabled={totalCapReached}
+          className="rdv-btn rdv-btn-rec"
+          style={{ padding: "10px 16px", fontSize: 12, opacity: totalCapReached ? 0.5 : 1, cursor: totalCapReached ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
+        >
+          <Plus size={13} /> Adicionar
+          {!isPaid && totalRemaining > 0 ? <span style={{ opacity: 0.7, marginLeft: 4 }}>({totalRemaining})</span> : null}
+        </button>
+      </div>
+
+      {loading && mySources.length === 0 && (
+        <div style={{ padding: 32, display: "flex", justifyContent: "center" }}>
+          <Loader2 size={20} className="rdv-spin" />
+        </div>
       )}
-      {adding && (
+
+      {/* Minhas fontes */}
+      {filteredMine.length > 0 && (
+        <section style={{ marginBottom: 28 }}>
+          <SectionHeader title="Minhas fontes" count={filteredMine.length} variant="mine" />
+          <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
+            {filteredMine.map((s) => (
+              <MyCard key={s.id} source={s} onToggle={handleToggleActive} onDelete={handleDelete} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Curadas */}
+      {filteredCurated.length > 0 && (
+        <section style={{ marginBottom: 28 }}>
+          <SectionHeader title="Catálogo curado" count={filteredCurated.length} variant="curated" />
+          <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
+            {filteredCurated.map((c) => (
+              <CuratedCard
+                key={c.key}
+                source={c}
+                disabled={disabledCuratedKeys.has(c.key)}
+                onToggle={(d) => handleToggleCurated(c.key, d)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Empty fallback */}
+      {!loading && filteredMine.length === 0 && filteredCurated.length === 0 && (
+        <div className="rdv-card" style={{ padding: 32, textAlign: "center", color: "var(--color-rdv-muted)" }}>
+          Nenhuma fonte encontrada nessa categoria. Clique em <strong>Adicionar</strong>.
+        </div>
+      )}
+
+      {adding && sub && (
         <AddSourceModal
           niche={active.id}
+          plan={sub.plan}
+          remainingTotal={totalRemaining}
           onClose={() => setAdding(false)}
           onSaved={() => {
             setAdding(false);
@@ -548,30 +395,67 @@ export default function SettingsPage() {
   );
 }
 
-// ─── Sub-components ────────────────────────────────────────────────────
+// Backend platform key (instagram → "ig" map antigo, hoje 1:1 exceto rss/newsletter)
+function platformBackendKey(p: CuratedPlatform): string {
+  return p === "rss" ? "rss" : p; // já são iguais
+}
 
-function CategoryChips({
+// ─── PlanBadge ────────────────────────────────────────────────────────
+
+function PlanBadge({ plan, used, cap, reached }: { plan: string; used: number; cap: number; reached: boolean }) {
+  return (
+    <div
+      className="rdv-mono"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "8px 12px",
+        border: "1.5px solid var(--color-rdv-ink)",
+        background: reached ? "var(--color-rdv-rec)" : "var(--color-rdv-paper)",
+        color: reached ? "white" : "var(--color-rdv-ink)",
+        fontSize: 11,
+        fontWeight: 700,
+        letterSpacing: "0.12em",
+        textTransform: "uppercase",
+        boxShadow: "2px 2px 0 0 var(--color-rdv-ink)",
+      }}
+    >
+      <Sparkles size={11} /> {plan} · {used}/{cap}
+    </div>
+  );
+}
+
+// ─── PlatformTabsBar ──────────────────────────────────────────────────
+
+function PlatformTabsBar({
   tab,
   onChange,
-  counts,
+  mine,
+  curated,
 }: {
-  tab: Category;
-  onChange: (c: Category) => void;
-  counts: CategoryCounts;
+  tab: PlatformTab;
+  onChange: (t: PlatformTab) => void;
+  mine: UserSourceRow[];
+  curated: CuratedSource[];
 }) {
   return (
-    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-      {ALL_CATEGORIES.map((c) => {
-        const isActive = c === tab;
-        const label = categoryLabel(c);
-        const Icon = categoryIcon(c);
+    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", overflowX: "auto" }}>
+      {PLATFORM_TABS.map((p) => {
+        const isActive = p === tab;
+        const Icon = platformIcon(p);
+        const count =
+          p === "all"
+            ? mine.length + curated.length
+            : mine.filter((s) => s.platform === platformBackendKey(p)).length +
+              curated.filter((c) => c.platform === p).length;
         return (
           <button
-            key={c}
+            key={p}
             type="button"
-            onClick={() => onChange(c)}
+            onClick={() => onChange(p)}
             style={{
-              padding: "8px 12px",
+              padding: "7px 11px",
               border: "1.5px solid var(--color-rdv-ink)",
               background: isActive ? "var(--color-rdv-ink)" : "white",
               color: isActive ? "white" : "var(--color-rdv-ink)",
@@ -579,18 +463,17 @@ function CategoryChips({
               fontFamily: "var(--font-geist-mono)",
               fontSize: 10.5,
               fontWeight: 700,
-              letterSpacing: "0.14em",
+              letterSpacing: "0.12em",
               textTransform: "uppercase",
               boxShadow: isActive ? "2px 2px 0 0 var(--color-rdv-rec)" : "none",
-              display: "flex",
+              display: "inline-flex",
               alignItems: "center",
-              gap: 6,
+              gap: 5,
+              whiteSpace: "nowrap",
             }}
           >
-            <Icon size={11} /> {label}
-            <span style={{ opacity: 0.7, fontWeight: 500 }}>
-              · {counts[c]}
-            </span>
+            <Icon size={11} /> {platformLabel(p)}
+            <span style={{ opacity: 0.7, fontWeight: 500 }}>· {count}</span>
           </button>
         );
       })}
@@ -598,394 +481,243 @@ function CategoryChips({
   );
 }
 
-function MyCategoryGrid({
-  tab,
-  sources,
-  onToggle,
-  onEdit,
-  onDelete,
-}: {
-  tab: Category;
-  sources: UserSourceRow[];
-  onToggle: (s: UserSourceRow) => void;
-  onEdit: (s: UserSourceRow) => void;
-  onDelete: (s: UserSourceRow) => void;
-}) {
-  const Icon = categoryIcon(tab);
+// ─── SectionHeader ────────────────────────────────────────────────────
 
-  if (sources.length === 0) {
-    return (
-      <div
-        className="rdv-card"
+function SectionHeader({ title, count, variant }: { title: string; count: number; variant: "mine" | "curated" }) {
+  const accent = variant === "mine" ? "var(--color-rdv-rec)" : "var(--color-rdv-ink)";
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 10 }}>
+      <span
+        className="rdv-mono"
         style={{
-          padding: 24,
-          textAlign: "center",
-          color: "var(--color-rdv-muted)",
-          fontSize: 13,
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: "0.18em",
+          textTransform: "uppercase",
+          color: accent,
         }}
       >
-        Nenhuma fonte cadastrada nessa categoria. Clique em{" "}
-        <strong>Adicionar</strong> pra começar.
-      </div>
-    );
-  }
-
-  return (
-    <div
-      style={{
-        display: "grid",
-        gap: 8,
-        gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-      }}
-    >
-      {sources.map((s) => (
-        <div
-          key={s.id}
-          className="rdv-card"
-          style={{
-            padding: 12,
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            opacity: s.active ? 1 : 0.55,
-          }}
-        >
-          <SourceAvatar source={s} icon={<Icon size={13} />} />
-
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: 13,
-                fontWeight: 700,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {s.handle}
-            </div>
-            <div
-              style={{
-                fontSize: 11,
-                color: "var(--color-rdv-muted)",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {s.display_name ?? "—"}
-            </div>
-            {!s.active && (
-              <span
-                className="rdv-mono"
-                style={{
-                  fontSize: 9,
-                  fontWeight: 700,
-                  letterSpacing: "0.14em",
-                  textTransform: "uppercase",
-                  color: "var(--color-rdv-rec)",
-                  marginTop: 4,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 4,
-                }}
-              >
-                <Pause size={9} /> Pausada
-              </span>
-            )}
-            {s.active && (
-              <span
-                className="rdv-mono"
-                style={{
-                  fontSize: 9,
-                  fontWeight: 700,
-                  letterSpacing: "0.14em",
-                  textTransform: "uppercase",
-                  color: "#1a8a3a",
-                  marginTop: 4,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 4,
-                }}
-              >
-                <Play size={9} /> Ativa
-              </span>
-            )}
-          </div>
-          <SourceActionsMenu
-            active={s.active}
-            onTogglePause={() => onToggle(s)}
-            onEdit={() => onEdit(s)}
-            onDelete={() => onDelete(s)}
-          />
-        </div>
-      ))}
+        ▮ {title}
+      </span>
+      <span
+        className="rdv-mono"
+        style={{
+          fontSize: 10,
+          color: "var(--color-rdv-muted)",
+          letterSpacing: "0.14em",
+        }}
+      >
+        {count} {count === 1 ? "item" : "itens"}
+      </span>
     </div>
   );
 }
 
-function SourceAvatar({
+// ─── MyCard ───────────────────────────────────────────────────────────
+
+function MyCard({
   source,
-  icon,
+  onToggle,
+  onDelete,
 }: {
   source: UserSourceRow;
-  icon: React.ReactNode;
+  onToggle: (s: UserSourceRow) => void;
+  onDelete: (s: UserSourceRow) => void;
 }) {
-  const [errored, setErrored] = useState(false);
-  const showImage = !!source.avatar_url && !errored;
-  const initial = (source.display_name ?? source.handle ?? "?")
-    .replace(/^@/, "")
-    .charAt(0)
-    .toUpperCase();
+  const [imgErrored, setImgErrored] = useState(false);
+  const initial = (source.display_name ?? source.handle).replace(/^@/, "").charAt(0).toUpperCase();
+  const showImage = !!source.avatar_url && !imgErrored;
 
   return (
     <div
+      className="rdv-card"
       style={{
-        flexShrink: 0,
-        width: 38,
-        height: 38,
-        borderRadius: "50%",
-        background: showImage
-          ? "transparent"
-          : source.active
-            ? "var(--color-rdv-ink)"
-            : "var(--color-rdv-line)",
-        color: "var(--color-rdv-paper)",
+        padding: 12,
         display: "flex",
         alignItems: "center",
-        justifyContent: "center",
-        overflow: "hidden",
+        gap: 10,
+        opacity: source.active ? 1 : 0.55,
         position: "relative",
-        border: showImage ? "1.5px solid var(--color-rdv-ink)" : "none",
       }}
     >
-      {showImage ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={`/api/img?u=${encodeURIComponent(source.avatar_url!)}`}
-          alt={source.handle}
-          loading="lazy"
-          onError={() => setErrored(true)}
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-          }}
+      <div style={{ flexShrink: 0, width: 40, height: 40, borderRadius: "50%", overflow: "hidden", border: "1.5px solid var(--color-rdv-ink)", background: showImage ? "transparent" : "var(--color-rdv-ink)", color: "white", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {showImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={`/api/img?url=${encodeURIComponent(source.avatar_url!)}`}
+            alt={source.handle}
+            loading="lazy"
+            onError={() => setImgErrored(true)}
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          />
+        ) : (
+          <span style={{ fontSize: 14, fontWeight: 800 }}>{initial}</span>
+        )}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {source.handle}
+          </span>
+          <span
+            className="rdv-mono"
+            style={{
+              fontSize: 8.5,
+              padding: "2px 5px",
+              background: "var(--color-rdv-rec)",
+              color: "white",
+              fontWeight: 700,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+            }}
+          >
+            Minha
+          </span>
+        </div>
+        <div style={{ fontSize: 11, color: "var(--color-rdv-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {source.display_name ?? `${source.platform} · ${source.niche}`}
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+        <IconBtn
+          title={source.active ? "Pausar" : "Ativar"}
+          onClick={() => onToggle(source)}
+          icon={source.active ? <Pause size={12} /> : <Play size={12} />}
         />
-      ) : initial && initial !== "?" ? (
-        <span
-          style={{
-            fontSize: 14,
-            fontWeight: 800,
-            letterSpacing: "0.02em",
-          }}
-        >
-          {initial}
-        </span>
-      ) : (
-        icon
-      )}
+        <IconBtn
+          title="Excluir"
+          onClick={() => onDelete(source)}
+          icon={<Trash2 size={12} />}
+          danger
+        />
+      </div>
     </div>
   );
 }
 
-interface CatalogItem {
-  key: string;
-  title: string;
-  subtitle?: string;
-  detail?: string;
-  href: string;
-  icon: React.ReactNode;
-  cta?: string;
-}
+// ─── CuratedCard ───────────────────────────────────────────────────────
 
-function CatalogGrid({ items }: { items: CatalogItem[] }) {
+function CuratedCard({
+  source,
+  disabled,
+  onToggle,
+}: {
+  source: CuratedSource;
+  disabled: boolean;
+  onToggle: (currentlyDisabled: boolean) => void;
+}) {
+  const initial = source.label.charAt(0).toUpperCase();
+
   return (
     <div
+      className="rdv-card"
       style={{
-        display: "grid",
-        gap: 8,
-        gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+        padding: 12,
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        opacity: disabled ? 0.5 : 1,
       }}
     >
-      {items.map((it) => (
-        <a
-          key={it.key}
-          href={it.href}
-          target="_blank"
-          rel="noreferrer"
-          className="rdv-card"
-          style={{
-            padding: 14,
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            textDecoration: "none",
-            color: "inherit",
-          }}
-        >
-          <div
+      <div style={{ flexShrink: 0, width: 40, height: 40, borderRadius: "50%", border: "1.5px dashed var(--color-rdv-ink)", background: "var(--color-rdv-paper)", color: "var(--color-rdv-ink)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800 }}>
+        {initial}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {source.label}
+          </span>
+          <span
+            className="rdv-mono"
             style={{
-              flexShrink: 0,
-              width: 36,
-              height: 36,
-              background: "var(--color-rdv-ink)",
-              color: "var(--color-rdv-paper)",
+              fontSize: 8.5,
+              padding: "2px 5px",
+              background: "transparent",
+              color: "var(--color-rdv-ink)",
+              fontWeight: 700,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              border: "1px solid var(--color-rdv-ink)",
+            }}
+          >
+            Curada
+          </span>
+        </div>
+        <div style={{ fontSize: 11, color: "var(--color-rdv-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {source.detail ?? `@${source.handle}`}
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+        {source.externalUrl && (
+          <a
+            href={source.externalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Abrir"
+            style={{
+              width: 26,
+              height: 26,
+              border: "1px solid var(--color-rdv-line)",
+              background: "transparent",
+              color: "var(--color-rdv-ink)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
             }}
           >
-            {it.icon}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 700 }}>{it.title}</div>
-            {it.subtitle && (
-              <div
-                style={{
-                  fontSize: 11,
-                  color: "var(--color-rdv-muted)",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {it.subtitle}
-              </div>
-            )}
-            {it.detail && (
-              <div
-                className="rdv-mono"
-                style={{
-                  fontSize: 9,
-                  letterSpacing: "0.14em",
-                  textTransform: "uppercase",
-                  color: "var(--color-rdv-muted)",
-                  marginTop: 4,
-                  fontWeight: 700,
-                }}
-              >
-                {it.detail}
-              </div>
-            )}
-          </div>
-          <span
-            className="rdv-mono"
-            style={{
-              fontSize: 9,
-              fontWeight: 700,
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-              color: "var(--color-rdv-rec)",
-              flexShrink: 0,
-            }}
-          >
-            {it.cta ?? "Ver →"}
-          </span>
-        </a>
-      ))}
+            <ExternalLink size={11} />
+          </a>
+        )}
+        <IconBtn
+          title={disabled ? "Reativar" : "Desativar"}
+          onClick={() => onToggle(disabled)}
+          icon={disabled ? <CheckCircle2 size={12} /> : <Pause size={12} />}
+        />
+      </div>
     </div>
   );
 }
 
-// ─── Modais ────────────────────────────────────────────────────────────
-
-function EditSourceModal({
-  source,
-  onClose,
-  onSaved,
-}: {
-  source: UserSourceRow;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [handle, setHandle] = useState(source.handle);
-  const [displayName, setDisplayName] = useState(source.display_name ?? "");
-  const [saving, setSaving] = useState(false);
-
-  async function save() {
-    setSaving(true);
-    try {
-      const jwt = await getJwtToken();
-      const res = await fetch("/api/sources", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
-        },
-        body: JSON.stringify({
-          id: source.id,
-          handle: handle.trim(),
-          displayName: displayName.trim() || null,
-        }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? `HTTP ${res.status}`);
-      }
-      toast.success("Fonte atualizada");
-      onSaved();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro");
-    } finally {
-      setSaving(false);
-    }
-  }
-
+function IconBtn({ title, onClick, icon, danger }: { title: string; onClick: () => void; icon: React.ReactNode; danger?: boolean }) {
   return (
-    <ModalShell title="Editar fonte" onClose={onClose}>
-      <FieldRow label="Handle">
-        <input
-          type="text"
-          value={handle}
-          onChange={(e) => setHandle(e.target.value)}
-          placeholder="@usuario"
-          style={inputStyle}
-        />
-      </FieldRow>
-      <FieldRow label="Nome amigável">
-        <input
-          type="text"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          placeholder="Ex: Alex Hormozi · Business"
-          style={inputStyle}
-        />
-      </FieldRow>
-      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 18 }}>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rdv-btn rdv-btn-ghost"
-          style={{ padding: "10px 14px", fontSize: 11 }}
-        >
-          Cancelar
-        </button>
-        <button
-          type="button"
-          onClick={() => void save()}
-          disabled={saving || !handle.trim()}
-          className="rdv-btn rdv-btn-rec"
-          style={{ padding: "10px 14px", fontSize: 11 }}
-        >
-          {saving ? <Loader2 size={11} className="rdv-spin" /> : <Check size={11} />}
-          Salvar
-        </button>
-      </div>
-    </ModalShell>
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      style={{
+        width: 26,
+        height: 26,
+        border: "1px solid var(--color-rdv-line)",
+        background: "transparent",
+        color: danger ? "var(--color-rdv-rec)" : "var(--color-rdv-ink)",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      {icon}
+    </button>
   );
 }
 
+// ─── AddSourceModal ────────────────────────────────────────────────────
+
 function AddSourceModal({
   niche,
+  plan,
+  remainingTotal,
   onClose,
   onSaved,
 }: {
   niche: string;
+  plan: "free" | "pro" | "max";
+  remainingTotal: number;
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [platform, setPlatform] = useState("instagram");
+  const [platform, setPlatform] = useState<CuratedPlatform>("instagram");
   const [handle, setHandle] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -1000,10 +732,7 @@ function AddSourceModal({
       const jwt = await getJwtToken();
       const res = await fetch("/api/sources", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
-        },
+        headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
         body: JSON.stringify({
           platform,
           niche,
@@ -1026,186 +755,136 @@ function AddSourceModal({
   }
 
   return (
-    <ModalShell title="Adicionar fonte" onClose={onClose}>
-      <FieldRow label="Plataforma">
-        <select
-          value={platform}
-          onChange={(e) => setPlatform(e.target.value)}
-          style={inputStyle}
-        >
-          <option value="instagram">Instagram</option>
-          <option value="youtube">YouTube</option>
-          <option value="tiktok">TikTok</option>
-          <option value="threads">Threads</option>
-          <option value="twitter">X / Twitter</option>
-          <option value="rss">RSS Notícias</option>
-          <option value="newsletter">Newsletter</option>
-        </select>
-      </FieldRow>
-      <FieldRow label="Handle / URL">
-        <input
-          type="text"
-          value={handle}
-          onChange={(e) => setHandle(e.target.value)}
-          placeholder={
-            platform === "instagram"
-              ? "username (sem @)"
-              : platform === "youtube"
-                ? "@channelName ou UC..."
-                : platform === "tiktok"
-                  ? "@usuario (sem @)"
-                  : platform === "threads"
-                    ? "username (sem @)"
-                    : platform === "twitter"
-                      ? "username (sem @)"
-                      : platform === "rss"
-                        ? "https://site.com/feed"
-                        : "newsletter@dominio.com"
-          }
-          style={inputStyle}
-        />
-      </FieldRow>
-      <FieldRow label="Nome amigável">
-        <input
-          type="text"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          placeholder="Opcional"
-          style={inputStyle}
-        />
-      </FieldRow>
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          justifyContent: "flex-end",
-          marginTop: 18,
-        }}
-      >
-        <button
-          type="button"
-          onClick={onClose}
-          className="rdv-btn rdv-btn-ghost"
-          style={{ padding: "10px 14px", fontSize: 11 }}
-        >
-          Cancelar
-        </button>
-        <button
-          type="button"
-          onClick={() => void save()}
-          disabled={saving}
-          className="rdv-btn rdv-btn-rec"
-          style={{ padding: "10px 14px", fontSize: 11 }}
-        >
-          {saving ? (
-            <Loader2 size={11} className="rdv-spin" />
-          ) : (
-            <Plus size={11} />
-          )}
-          Adicionar
-        </button>
-      </div>
-    </ModalShell>
-  );
-}
-
-function ModalShell({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  return (
     <div
+      role="dialog"
+      aria-modal="true"
       onClick={onClose}
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(10, 9, 8, 0.6)",
-        backdropFilter: "blur(4px)",
-        zIndex: 60,
+        background: "rgba(10,9,8,0.55)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: 20,
+        zIndex: 100,
+        padding: 16,
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
+        className="rdv-card"
         style={{
+          background: "var(--color-rdv-paper)",
+          padding: 24,
           width: "100%",
           maxWidth: 460,
-          background: "var(--color-rdv-cream)",
-          border: "1.5px solid var(--color-rdv-ink)",
-          boxShadow: "10px 10px 0 0 var(--color-rdv-rec)",
-          padding: "22px 24px",
-          position: "relative",
+          boxShadow: "6px 6px 0 0 var(--color-rdv-ink)",
         }}
       >
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Fechar"
-          style={{
-            position: "absolute",
-            top: 12,
-            right: 12,
-            background: "white",
-            border: "1.5px solid var(--color-rdv-line)",
-            padding: 6,
-            cursor: "pointer",
-          }}
-        >
-          <X size={14} />
-        </button>
-        <h2
-          className="rdv-display"
-          style={{ fontSize: 22, lineHeight: 1.1, marginBottom: 14 }}
-        >
-          {title}
-        </h2>
-        {children}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+          <div>
+            <div className="rdv-eyebrow" style={{ marginBottom: 4 }}>
+              <span className="rdv-rec-dot" /> ADICIONAR FONTE
+            </div>
+            <h2 className="rdv-display" style={{ fontSize: 22, lineHeight: 1.05 }}>
+              Cadastrar nova fonte
+            </h2>
+            {plan === "free" && (
+              <p style={{ fontSize: 11, color: "var(--color-rdv-muted)", marginTop: 6 }}>
+                Plano Free · {remainingTotal} {remainingTotal === 1 ? "vaga restante" : "vagas restantes"}
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ border: "1px solid var(--color-rdv-line)", padding: 6, background: "transparent", cursor: "pointer" }}
+            aria-label="Fechar"
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        <FieldRow label="Plataforma">
+          <select
+            value={platform}
+            onChange={(e) => setPlatform(e.target.value as CuratedPlatform)}
+            style={inputStyle}
+          >
+            <option value="instagram">Instagram</option>
+            <option value="youtube">YouTube</option>
+            <option value="tiktok">TikTok</option>
+            <option value="threads">Threads</option>
+            <option value="twitter">X / Twitter</option>
+            <option value="rss">RSS Notícias</option>
+            <option value="newsletter">Newsletter</option>
+          </select>
+        </FieldRow>
+
+        <FieldRow label="Handle / URL">
+          <input
+            type="text"
+            value={handle}
+            onChange={(e) => setHandle(e.target.value)}
+            placeholder={placeholderForPlatform(platform)}
+            style={inputStyle}
+          />
+        </FieldRow>
+
+        <FieldRow label="Nome (opcional)">
+          <input
+            type="text"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="Ex: Lucas Amendola · Bitcoin"
+            style={inputStyle}
+          />
+        </FieldRow>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rdv-btn rdv-btn-ghost"
+            style={{ padding: "10px 14px", fontSize: 11 }}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => void save()}
+            disabled={saving}
+            className="rdv-btn rdv-btn-rec"
+            style={{ padding: "10px 14px", fontSize: 11 }}
+          >
+            {saving ? <Loader2 size={11} className="rdv-spin" /> : <Plus size={11} />}
+            Adicionar
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-function FieldRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ marginBottom: 12 }}>
-      <label
+    <label style={{ display: "block", marginBottom: 12 }}>
+      <span
         className="rdv-mono"
         style={{
-          fontSize: 9,
+          fontSize: 9.5,
           fontWeight: 700,
-          letterSpacing: "0.18em",
+          letterSpacing: "0.16em",
           textTransform: "uppercase",
           color: "var(--color-rdv-muted)",
-          marginBottom: 6,
           display: "block",
+          marginBottom: 6,
         }}
       >
         {label}
-      </label>
+      </span>
       {children}
-    </div>
+    </label>
   );
 }
 
@@ -1214,10 +893,26 @@ const inputStyle: React.CSSProperties = {
   padding: "10px 12px",
   border: "1.5px solid var(--color-rdv-ink)",
   background: "white",
-  fontFamily: "var(--font-sans)",
   fontSize: 13,
+  fontFamily: "inherit",
   outline: "none",
 };
 
-// `_` to suppress unused warning if PLATFORM_TO_CATEGORY isn't used downstream
-void PLATFORM_TO_CATEGORY;
+function placeholderForPlatform(p: CuratedPlatform): string {
+  switch (p) {
+    case "instagram":
+      return "username (sem @)";
+    case "youtube":
+      return "@channelName ou UC...";
+    case "tiktok":
+      return "@usuario (sem @)";
+    case "threads":
+      return "username (sem @)";
+    case "twitter":
+      return "username (sem @)";
+    case "rss":
+      return "https://site.com/feed";
+    case "newsletter":
+      return "newsletter@dominio.com";
+  }
+}
