@@ -39,10 +39,14 @@ const VALID_PLATFORMS = new Set([
   "tiktok",
 ]);
 
-/** Platforms exclusivas de planos avançados (não-Pro). */
-const PLATFORM_MIN_PLAN: Record<string, "pro" | "max"> = {
-  tiktok: "max",
-};
+/**
+ * Platforms exclusivas de planos avançados (não-Pro).
+ *
+ * Vazio desde 2026-05-08: o Pro novo (R$ 99,90) consolidou Max e cobre
+ * TikTok via tiktokHandlesCap=10. Manter o tipo aqui pra ressuscitar
+ * fácil se algum dia a gente precisar reservar plataforma pra tier maior.
+ */
+const PLATFORM_MIN_PLAN: Record<string, "pro" | "max"> = {};
 
 export async function GET(req: Request) {
   if (!isDbConfigured()) {
