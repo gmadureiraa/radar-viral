@@ -12,3 +12,6 @@ node_modules/
 # Build artifacts
 *.tsbuildinfo
 tsconfig.tsbuildinfo
+
+# Security audits — local-only, contém detalhes de vulnerabilidades
+.security/
