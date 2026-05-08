@@ -23,6 +23,9 @@ import {
   X,
   Pause,
   Play,
+  Music2,
+  AtSign,
+  Hash,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -33,11 +36,21 @@ import { SourceActionsMenu } from "@/components/source-actions-menu";
 import { NichePillBar } from "@/app/app/_components/niche-pill-bar";
 import type { UserSourceRow } from "@/app/api/sources/route";
 
-type Category = "ig" | "youtube" | "news" | "newsletter";
+type Category =
+  | "ig"
+  | "youtube"
+  | "tiktok"
+  | "threads"
+  | "twitter"
+  | "news"
+  | "newsletter";
 
 const CATEGORY_TO_PLATFORM: Record<Category, string> = {
   ig: "instagram",
   youtube: "youtube",
+  tiktok: "tiktok",
+  threads: "threads",
+  twitter: "twitter",
   news: "rss",
   newsletter: "newsletter",
 };
@@ -45,9 +58,54 @@ const CATEGORY_TO_PLATFORM: Record<Category, string> = {
 const PLATFORM_TO_CATEGORY: Record<string, Category> = {
   instagram: "ig",
   youtube: "youtube",
+  tiktok: "tiktok",
+  threads: "threads",
+  twitter: "twitter",
   rss: "news",
   newsletter: "newsletter",
 };
+
+type CategoryCounts = Record<Category, number>;
+
+const ZERO_COUNTS: CategoryCounts = {
+  ig: 0,
+  youtube: 0,
+  tiktok: 0,
+  threads: 0,
+  twitter: 0,
+  news: 0,
+  newsletter: 0,
+};
+
+function categoryIcon(c: Category): typeof Instagram {
+  if (c === "ig") return Instagram;
+  if (c === "youtube") return Youtube;
+  if (c === "tiktok") return Music2;
+  if (c === "threads") return AtSign;
+  if (c === "twitter") return Hash;
+  if (c === "news") return Newspaper;
+  return Mail;
+}
+
+function categoryLabel(c: Category): string {
+  if (c === "ig") return "Instagram";
+  if (c === "youtube") return "YouTube";
+  if (c === "tiktok") return "TikTok";
+  if (c === "threads") return "Threads";
+  if (c === "twitter") return "X / Twitter";
+  if (c === "news") return "RSS Notícias";
+  return "Newsletters";
+}
+
+const ALL_CATEGORIES: Category[] = [
+  "ig",
+  "youtube",
+  "tiktok",
+  "threads",
+  "twitter",
+  "news",
+  "newsletter",
+];
 
 export default function SettingsPage() {
   const session = useNeonSession();
@@ -59,14 +117,15 @@ export default function SettingsPage() {
   const [adding, setAdding] = useState(false);
 
   const sources = getCuratedSources(active.id);
-  const counts = sources
+  const counts: CategoryCounts = sources
     ? {
+        ...ZERO_COUNTS,
         ig: sources.igHandles.length,
         youtube: sources.youtubeChannels.length,
         news: sources.newsRss.length,
         newsletter: sources.newsletterSubscribe.length,
       }
-    : { ig: 0, youtube: 0, news: 0, newsletter: 0 };
+    : ZERO_COUNTS;
 
   // Carrega fontes individuais do user
   const refreshMine = async () => {
@@ -263,6 +322,9 @@ export default function SettingsPage() {
               counts={{
                 ig: myByCategory("ig").length,
                 youtube: myByCategory("youtube").length,
+                tiktok: myByCategory("tiktok").length,
+                threads: myByCategory("threads").length,
+                twitter: myByCategory("twitter").length,
                 news: myByCategory("news").length,
                 newsletter: myByCategory("newsletter").length,
               }}
@@ -367,6 +429,22 @@ export default function SettingsPage() {
                 }))}
               />
             )}
+            {(tab === "tiktok" || tab === "threads" || tab === "twitter") && (
+              <div
+                className="rdv-card"
+                style={{
+                  padding: 20,
+                  fontSize: 12.5,
+                  color: "var(--color-rdv-muted)",
+                  lineHeight: 1.55,
+                }}
+              >
+                {categoryLabel(tab)} ainda não tem catálogo curado pelo time
+                Kaleidos. Adicione perfis manualmente em <strong>Minhas
+                fontes</strong> acima — o cron diário vai começar a
+                rastrear amanhã.
+              </div>
+            )}
           </div>
         </section>
       )}
@@ -405,28 +483,14 @@ function CategoryChips({
 }: {
   tab: Category;
   onChange: (c: Category) => void;
-  counts: { ig: number; youtube: number; news: number; newsletter: number };
+  counts: CategoryCounts;
 }) {
   return (
     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-      {(["ig", "youtube", "news", "newsletter"] as Category[]).map((c) => {
+      {ALL_CATEGORIES.map((c) => {
         const isActive = c === tab;
-        const label =
-          c === "ig"
-            ? "Instagram"
-            : c === "youtube"
-              ? "YouTube"
-              : c === "news"
-                ? "RSS Notícias"
-                : "Newsletters";
-        const Icon =
-          c === "ig"
-            ? Instagram
-            : c === "youtube"
-              ? Youtube
-              : c === "news"
-                ? Newspaper
-                : Mail;
+        const label = categoryLabel(c);
+        const Icon = categoryIcon(c);
         return (
           <button
             key={c}
@@ -473,14 +537,7 @@ function MyCategoryGrid({
   onEdit: (s: UserSourceRow) => void;
   onDelete: (s: UserSourceRow) => void;
 }) {
-  const Icon =
-    tab === "ig"
-      ? Instagram
-      : tab === "youtube"
-        ? Youtube
-        : tab === "news"
-          ? Newspaper
-          : Mail;
+  const Icon = categoryIcon(tab);
 
   if (sources.length === 0) {
     return (
@@ -853,6 +910,9 @@ function AddSourceModal({
         >
           <option value="instagram">Instagram</option>
           <option value="youtube">YouTube</option>
+          <option value="tiktok">TikTok</option>
+          <option value="threads">Threads</option>
+          <option value="twitter">X / Twitter</option>
           <option value="rss">RSS Notícias</option>
           <option value="newsletter">Newsletter</option>
         </select>
@@ -866,10 +926,16 @@ function AddSourceModal({
             platform === "instagram"
               ? "username (sem @)"
               : platform === "youtube"
-                ? "@channelName"
-                : platform === "rss"
-                  ? "https://site.com/feed"
-                  : "newsletter@dominio.com"
+                ? "@channelName ou UC..."
+                : platform === "tiktok"
+                  ? "@usuario (sem @)"
+                  : platform === "threads"
+                    ? "username (sem @)"
+                    : platform === "twitter"
+                      ? "username (sem @)"
+                      : platform === "rss"
+                        ? "https://site.com/feed"
+                        : "newsletter@dominio.com"
           }
           style={inputStyle}
         />
