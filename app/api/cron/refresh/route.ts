@@ -582,6 +582,84 @@ async function refreshIgPerUser(sql: SqlClient): Promise<{
 // Lê tabela `videos` (canônica do v1). RSS YT formato:
 // https://www.youtube.com/feeds/videos.xml?channel_id=UC...
 
+interface YtChannelTarget {
+  channelId: string;
+  name: string;
+  handle: string;
+}
+
+/**
+ * Processa UM canal YT via RSS e dá upsert em `videos`. Reusa o mesmo
+ * decoder XML pra catálogo global e per-user.
+ */
+async function refreshYoutubeChannel(
+  sql: SqlClient,
+  ch: YtChannelTarget,
+): Promise<{ inserted: number; errors: string[] }> {
+  const errors: string[] = [];
+  let inserted = 0;
+  if (!ch.channelId) {
+    return { inserted: 0, errors: [`${ch.handle}: channelId vazio`] };
+  }
+  try {
+    const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${ch.channelId}`;
+    const res = await fetch(rssUrl, {
+      signal: AbortSignal.timeout(15_000),
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (compatible; RadarViral/1.0; +https://radar.kaleidos.com.br)",
+      },
+    });
+    if (!res.ok) {
+      return { inserted: 0, errors: [`${ch.handle}: HTTP ${res.status}`] };
+    }
+    const xml = await res.text();
+    // Parser leve (regex). Pega até 10 entries mais recentes.
+    const entries = xml.split(/<entry>/).slice(1, 11);
+    for (const e of entries) {
+      const idMatch = /<yt:videoId>([^<]+)<\/yt:videoId>/.exec(e);
+      const titleMatch = /<title>([^<]+)<\/title>/.exec(e);
+      const publishedMatch = /<published>([^<]+)<\/published>/.exec(e);
+      const thumbMatch = /<media:thumbnail[^>]*url="([^"]+)"/.exec(e);
+      const linkMatch = /<link[^>]*href="([^"]+)"/.exec(e);
+      if (!idMatch || !titleMatch) continue;
+      const videoId = idMatch[1];
+      const link = linkMatch?.[1] ?? `https://www.youtube.com/watch?v=${videoId}`;
+      try {
+        await sql`
+          INSERT INTO videos (
+            video_id, channel_id, channel_name, channel_handle,
+            title, thumbnail_url, published_at, link,
+            first_seen_at, last_seen_at
+          )
+          VALUES (
+            ${videoId}, ${ch.channelId}, ${ch.name}, ${ch.handle},
+            ${decodeXmlEntities(titleMatch[1])},
+            ${thumbMatch?.[1] ?? null},
+            ${publishedMatch?.[1] ?? new Date().toISOString()},
+            ${link},
+            NOW(), NOW()
+          )
+          ON CONFLICT (video_id) DO UPDATE SET
+            last_seen_at = NOW(),
+            title = EXCLUDED.title,
+            thumbnail_url = COALESCE(EXCLUDED.thumbnail_url, videos.thumbnail_url)
+        `;
+        inserted++;
+      } catch (insertErr) {
+        errors.push(
+          `insert ${videoId}: ${insertErr instanceof Error ? insertErr.message : String(insertErr)}`,
+        );
+      }
+    }
+  } catch (channelErr) {
+    errors.push(
+      `fetch ${ch.handle}: ${channelErr instanceof Error ? channelErr.message : String(channelErr)}`,
+    );
+  }
+  return { inserted, errors };
+}
+
 async function refreshYoutube(
   sql: SqlClient,
 ): Promise<{ inserted: number; errors: string[] }> {
@@ -593,70 +671,148 @@ async function refreshYoutube(
   let inserted = 0;
   const errors: string[] = [];
   for (const ch of YOUTUBE_CHANNELS) {
-    if (!ch.channelId) continue;
-    try {
-      const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${ch.channelId}`;
-      const res = await fetch(rssUrl, {
-        signal: AbortSignal.timeout(15_000),
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (compatible; RadarViral/1.0; +https://radar.kaleidos.com.br)",
-        },
-      });
-      if (!res.ok) {
-        errors.push(`${ch.handle}: HTTP ${res.status}`);
-        continue;
-      }
-      const xml = await res.text();
-      // Parser leve (regex). Pega até 10 entries mais recentes.
-      const entries = xml.split(/<entry>/).slice(1, 11);
-      for (const e of entries) {
-        const idMatch = /<yt:videoId>([^<]+)<\/yt:videoId>/.exec(e);
-        const titleMatch = /<title>([^<]+)<\/title>/.exec(e);
-        const publishedMatch = /<published>([^<]+)<\/published>/.exec(e);
-        const thumbMatch = /<media:thumbnail[^>]*url="([^"]+)"/.exec(e);
-        const linkMatch = /<link[^>]*href="([^"]+)"/.exec(e);
-        if (!idMatch || !titleMatch) continue;
-        const videoId = idMatch[1];
-        const link = linkMatch?.[1] ?? `https://www.youtube.com/watch?v=${videoId}`;
-        try {
-          // Schema real da tabela videos:
-          // video_id, channel_id, channel_name, channel_handle, country, category,
-          // title, thumbnail_url, published_at, link, first_seen_at, last_seen_at
-          await sql`
-            INSERT INTO videos (
-              video_id, channel_id, channel_name, channel_handle,
-              title, thumbnail_url, published_at, link,
-              first_seen_at, last_seen_at
-            )
-            VALUES (
-              ${videoId}, ${ch.channelId}, ${ch.name}, ${ch.handle},
-              ${decodeXmlEntities(titleMatch[1])},
-              ${thumbMatch?.[1] ?? null},
-              ${publishedMatch?.[1] ?? new Date().toISOString()},
-              ${link},
-              NOW(), NOW()
-            )
-            ON CONFLICT (video_id) DO UPDATE SET
-              last_seen_at = NOW(),
-              title = EXCLUDED.title,
-              thumbnail_url = COALESCE(EXCLUDED.thumbnail_url, videos.thumbnail_url)
-          `;
-          inserted++;
-        } catch (insertErr) {
-          errors.push(
-            `insert ${videoId}: ${insertErr instanceof Error ? insertErr.message : String(insertErr)}`,
-          );
-        }
-      }
-    } catch (channelErr) {
-      errors.push(
-        `fetch ${ch.handle}: ${channelErr instanceof Error ? channelErr.message : String(channelErr)}`,
-      );
-    }
-    await new Promise((r) => setTimeout(r, 250));
+    const r = await refreshYoutubeChannel(sql, {
+      channelId: ch.channelId,
+      name: ch.name,
+      handle: ch.handle,
+    });
+    inserted += r.inserted;
+    if (r.errors.length > 0) errors.push(...r.errors);
+    await new Promise((res) => setTimeout(res, 250));
   }
   return { inserted, errors: errors.slice(0, 20) };
+}
+
+/**
+ * Per-user: processa canais YT dos users Pro/Max ativos. Cap por plano
+ * via getPlanCapForPlatform(plan, 'youtube') (8 no Pro). RSS é grátis,
+ * então não tem freio de custo — só limite por cap do plano.
+ *
+ * Convenção de schema: `tracked_sources.handle` deve guardar o
+ * channelId YT (formato 'UC...'). Se vier um @handle, fallback procura
+ * channelId em `display_name`. Sem nenhum dos dois, skipa silencioso.
+ *
+ * TODO out-of-scope: criar resolver @handle → channelId (hoje user
+ * precisa colar o channelId direto pra valer pro cron).
+ */
+async function refreshYoutubePerUser(sql: SqlClient): Promise<{
+  inserted: number;
+  users: number;
+  results: Array<{
+    user_id: string;
+    plan: PlanId;
+    channels: number;
+    inserted: number;
+    status: string;
+    errorMsg?: string;
+  }>;
+}> {
+  let dbRows: Array<{
+    user_id: string;
+    plan: string;
+    handle: string;
+    display_name: string | null;
+  }> = [];
+  try {
+    dbRows = (await sql`
+      SELECT ts.user_id::text AS user_id,
+             usr.plan::text AS plan,
+             ts.handle,
+             ts.display_name
+        FROM tracked_sources ts
+        INNER JOIN user_subscriptions_radar usr
+          ON usr.user_id = ts.user_id
+       WHERE ts.platform = 'youtube'
+         AND ts.user_id IS NOT NULL
+         AND COALESCE(ts.active, TRUE) = TRUE
+         AND usr.status = 'active'
+         AND usr.plan IN ('pro', 'max')
+    `) as Array<{
+      user_id: string;
+      plan: string;
+      handle: string;
+      display_name: string | null;
+    }>;
+  } catch (err) {
+    console.warn("[refresh-yt-user] query fallback:", err);
+    return { inserted: 0, users: 0, results: [] };
+  }
+
+  // Group por user e resolve channelId
+  const byUser = new Map<string, { plan: PlanId; targets: YtChannelTarget[] }>();
+  for (const r of dbRows) {
+    if (r.plan !== "pro" && r.plan !== "max") continue;
+    const plan = r.plan as PlanId;
+    if (!hasIndividualCron(plan)) continue;
+
+    let channelId = "";
+    let label = r.display_name ?? r.handle ?? "";
+    if (typeof r.handle === "string" && r.handle.startsWith("UC")) {
+      channelId = r.handle;
+    } else if (typeof r.display_name === "string" && r.display_name.startsWith("UC")) {
+      channelId = r.display_name;
+      label = r.handle ?? channelId;
+    } else {
+      continue;
+    }
+
+    if (!byUser.has(r.user_id)) byUser.set(r.user_id, { plan, targets: [] });
+    byUser.get(r.user_id)!.targets.push({
+      channelId,
+      name: label,
+      handle: label,
+    });
+  }
+
+  const results: Array<{
+    user_id: string;
+    plan: PlanId;
+    channels: number;
+    inserted: number;
+    status: string;
+    errorMsg?: string;
+  }> = [];
+  let totalInserted = 0;
+
+  for (const [userId, { plan, targets }] of byUser) {
+    const cap = getPlanCapForPlatform(plan, "youtube") ?? 0;
+    if (cap <= 0) continue;
+    const capped = targets.slice(0, cap);
+
+    let userInserted = 0;
+    const userErrors: string[] = [];
+    for (const t of capped) {
+      const r = await refreshYoutubeChannel(sql, t);
+      userInserted += r.inserted;
+      if (r.errors.length > 0) userErrors.push(...r.errors);
+      await new Promise((res) => setTimeout(res, 250));
+    }
+    totalInserted += userInserted;
+
+    const status: "success" | "error" =
+      userErrors.length > 0 && userInserted === 0 ? "error" : "success";
+    const errorMsg =
+      userErrors.length > 0 ? userErrors.slice(0, 3).join(" | ").slice(0, 500) : undefined;
+
+    results.push({
+      user_id: userId,
+      plan,
+      channels: capped.length,
+      inserted: userInserted,
+      status,
+      errorMsg,
+    });
+
+    await logCronRun(sql, {
+      cronType: "refresh-yt-user",
+      userId,
+      postsAdded: userInserted,
+      status,
+      errorMsg,
+    });
+  }
+
+  return { inserted: totalInserted, users: byUser.size, results };
 }
 
 function decodeXmlEntities(s: string): string {
@@ -766,7 +922,7 @@ export async function GET(req: Request) {
     });
   }
 
-  // YouTube
+  // YouTube (catálogo curado global — todos os planos veem)
   try {
     const y = await refreshYoutube(sql);
     summary.youtube_inserted = y.inserted;
@@ -781,6 +937,28 @@ export async function GET(req: Request) {
     summary.youtube_error = err instanceof Error ? err.message : String(err);
     await logCronRun(sql, {
       cronType: "refresh-youtube",
+      status: "error",
+      errorMsg: String(err).slice(0, 500),
+    });
+  }
+
+  // YouTube (per-user — canais dos users Pro/Max). RSS = $0.
+  try {
+    const yu = await refreshYoutubePerUser(sql);
+    summary.youtube_user_inserted = yu.inserted;
+    summary.youtube_user_users = yu.users;
+    summary.youtube_user_results = yu.results;
+    if (yu.users === 0) {
+      await logCronRun(sql, {
+        cronType: "refresh-yt-user",
+        status: "skipped",
+        errorMsg: "no_paid_users_with_yt_sources",
+      });
+    }
+  } catch (err) {
+    summary.youtube_user_error = err instanceof Error ? err.message : String(err);
+    await logCronRun(sql, {
+      cronType: "refresh-yt-user",
       status: "error",
       errorMsg: String(err).slice(0, 500),
     });
