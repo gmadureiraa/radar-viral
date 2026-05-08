@@ -159,7 +159,14 @@ async function lookupUserIdByCustomer(
 }
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
-  if (session.metadata?.app !== STRIPE_APP_TAG) return;
+  if (session.metadata?.app !== STRIPE_APP_TAG) {
+    // P2-3 fix 2026-05-08: log explícito quando ignora — evita "user pagou
+    // e nunca virou Pro" silencioso por bug humano (sub manual sem metadata).
+    console.warn(
+      `[stripe.webhook.checkout] ignorando session ${session.id} sem metadata.app=${STRIPE_APP_TAG} (atual: ${session.metadata?.app ?? "null"})`,
+    );
+    return;
+  }
 
   const userId = session.metadata.userId;
   const planId = session.metadata.planId as PlanId | undefined;
@@ -261,7 +268,13 @@ function mapStripePriceToPlan(priceId: string | null | undefined): PlanId | null
 }
 
 async function handleSubscriptionUpdated(sub: Stripe.Subscription) {
-  if (sub.metadata?.app !== STRIPE_APP_TAG) return;
+  if (sub.metadata?.app !== STRIPE_APP_TAG) {
+    // P2-3 fix 2026-05-08: log explícito ao ignorar
+    console.warn(
+      `[stripe.webhook] ignorando subscription ${sub.id} sem metadata.app=${STRIPE_APP_TAG} (atual: ${sub.metadata?.app ?? "null"})`,
+    );
+    return;
+  }
 
   const sql = getSql();
 
@@ -377,7 +390,13 @@ async function handleSubscriptionUpdated(sub: Stripe.Subscription) {
 }
 
 async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
-  if (sub.metadata?.app !== STRIPE_APP_TAG) return;
+  if (sub.metadata?.app !== STRIPE_APP_TAG) {
+    // P2-3 fix 2026-05-08: log explícito ao ignorar
+    console.warn(
+      `[stripe.webhook] ignorando subscription ${sub.id} sem metadata.app=${STRIPE_APP_TAG} (atual: ${sub.metadata?.app ?? "null"})`,
+    );
+    return;
+  }
   const sql = getSql();
   await sql`
     UPDATE user_subscriptions_radar
@@ -451,7 +470,13 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
     console.warn("[webhook] invoice.payment_failed retrieve sub falhou:", err);
     return;
   }
-  if (sub.metadata?.app !== STRIPE_APP_TAG) return;
+  if (sub.metadata?.app !== STRIPE_APP_TAG) {
+    // P2-3 fix 2026-05-08: log explícito ao ignorar
+    console.warn(
+      `[stripe.webhook] ignorando subscription ${sub.id} sem metadata.app=${STRIPE_APP_TAG} (atual: ${sub.metadata?.app ?? "null"})`,
+    );
+    return;
+  }
 
   // Resolve userId
   let userId: string | null = sub.metadata?.userId ?? null;
