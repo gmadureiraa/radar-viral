@@ -23,12 +23,18 @@
 
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import { checkCronAuth, isCronEnabled, getCronSql, logCronRun, jsonResponse } from "@/lib/cron-utils";
+import { getPlanCapForPlatform, hasIndividualCron, type PlanId } from "@/lib/pricing";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 type NicheId = "crypto" | "marketing" | "ai";
 type SqlClient = NeonQueryFunction<false, false>;
+
+// Cap defensivo por user/run pra não estourar custo Apify mesmo se o user
+// configurar 15 handles (cap Pro). 30 posts × 15 = 450 posts/run worst-case,
+// que é o teto que aceitamos de raja na conta Apify por user/dia.
+const MAX_POSTS_PER_USER_RUN = 450;
 
 // ─── Catálogos (espelham os do v1) ───────────────────────────────────
 
@@ -182,16 +188,20 @@ async function postsAddedToday(sql: SqlClient, nicheSlug: string): Promise<numbe
 interface IgBundle {
   slug: NicheId;
   handles: string[];
+  /** user_id quando o bundle vem de fontes individuais; null = global (Free). */
+  userId: string | null;
 }
 
 async function listIgBundles(sql: SqlClient): Promise<IgBundle[]> {
-  // 1) tenta tracked_sources globais (user_id NULL ou seed-gabriel) primeiro
+  // 1) Apenas fontes GLOBAIS (user_id IS NULL) pro radar global do Free.
+  //    Fontes per-user vão por outro caminho em listIgBundlesByUser.
   let dbRows: Array<{ niche: string; handle: string }> = [];
   try {
     dbRows = (await sql`
       SELECT COALESCE(niche::text, '') AS niche, handle
         FROM tracked_sources
        WHERE platform = 'instagram'
+         AND user_id IS NULL
          AND COALESCE(active, TRUE) = TRUE
     `) as Array<{ niche: string; handle: string }>;
   } catch {
@@ -214,19 +224,105 @@ async function listIgBundles(sql: SqlClient): Promise<IgBundle[]> {
 
   const out: IgBundle[] = [];
   for (const [slug, set] of grouped) {
-    out.push({ slug, handles: Array.from(set) });
+    out.push({ slug, handles: Array.from(set), userId: null });
   }
   return out;
+}
+
+interface UserIgBundles {
+  userId: string;
+  plan: PlanId;
+  bundles: IgBundle[];
+}
+
+/**
+ * Bundles per-user pros planos com cron individual ativo (Pro/Max). Cada user
+ * vira N bundles (1 por nicho com fontes próprias). Caps:
+ *  - Total de handles ≤ getPlanCapForPlatform(plan, 'instagram') (15 no Pro)
+ *  - Sem cap diário GLOBAL — só MAX_POSTS_PER_USER_RUN defensivo no run
+ */
+async function listIgBundlesByUser(sql: SqlClient): Promise<UserIgBundles[]> {
+  let dbRows: Array<{ user_id: string; plan: string; niche: string; handle: string }> = [];
+  try {
+    dbRows = (await sql`
+      SELECT ts.user_id::text AS user_id,
+             usr.plan::text AS plan,
+             COALESCE(ts.niche::text, '') AS niche,
+             ts.handle
+        FROM tracked_sources ts
+        INNER JOIN user_subscriptions_radar usr
+          ON usr.user_id = ts.user_id
+       WHERE ts.platform = 'instagram'
+         AND ts.user_id IS NOT NULL
+         AND COALESCE(ts.active, TRUE) = TRUE
+         AND usr.status = 'active'
+         AND usr.plan IN ('pro', 'max')
+    `) as Array<{ user_id: string; plan: string; niche: string; handle: string }>;
+  } catch (err) {
+    console.warn("[refresh-ig-user] listIgBundlesByUser fallback:", err);
+    return [];
+  }
+
+  const byUser = new Map<string, { plan: PlanId; perNiche: Map<NicheId, Set<string>> }>();
+  for (const r of dbRows) {
+    if (!["crypto", "marketing", "ai"].includes(r.niche)) continue;
+    if (r.plan !== "pro" && r.plan !== "max") continue;
+    const plan = r.plan as PlanId;
+    if (!hasIndividualCron(plan)) continue;
+    const slug = r.niche as NicheId;
+    const handle = r.handle.replace(/^@/, "");
+    if (!byUser.has(r.user_id)) {
+      byUser.set(r.user_id, { plan, perNiche: new Map() });
+    }
+    const entry = byUser.get(r.user_id)!;
+    if (!entry.perNiche.has(slug)) entry.perNiche.set(slug, new Set());
+    entry.perNiche.get(slug)!.add(handle);
+  }
+
+  const out: UserIgBundles[] = [];
+  for (const [userId, { plan, perNiche }] of byUser) {
+    const cap = getPlanCapForPlatform(plan, "instagram") ?? 0;
+    if (cap <= 0) continue;
+
+    // Aplica cap total de handles do plano (15 no Pro). Distribui mantendo
+    // ordem inserção (Set preserva insertion order). Quando estoura cap,
+    // simplesmente cropa.
+    let used = 0;
+    const bundles: IgBundle[] = [];
+    for (const [slug, set] of perNiche) {
+      if (used >= cap) break;
+      const remaining = cap - used;
+      const handles = Array.from(set).slice(0, remaining);
+      if (handles.length === 0) continue;
+      used += handles.length;
+      bundles.push({ slug, handles, userId });
+    }
+    if (bundles.length > 0) {
+      out.push({ userId, plan, bundles });
+    }
+  }
+  return out;
+}
+
+interface IgBundleCap {
+  /** Cap absoluto de posts inseridos nesse bundle nesse run. */
+  postsPerRun: number;
+  /** Se truthy, faz check de "posts/dia" no nicho via instagram_posts (modo global). */
+  applyDailyNicheCap: boolean;
 }
 
 async function refreshIgBundle(
   sql: SqlClient,
   apifyKey: string,
   bundle: IgBundle,
+  cap: IgBundleCap,
 ): Promise<{ inserted: number; status: string; errorMsg?: string }> {
-  const used = await postsAddedToday(sql, bundle.slug);
-  if (used >= POSTS_PER_NICHE_PER_DAY) {
-    return { inserted: 0, status: "rate_limited" };
+  let usedToday = 0;
+  if (cap.applyDailyNicheCap) {
+    usedToday = await postsAddedToday(sql, bundle.slug);
+    if (usedToday >= POSTS_PER_NICHE_PER_DAY) {
+      return { inserted: 0, status: "rate_limited" };
+    }
   }
   if (bundle.handles.length === 0) {
     return { inserted: 0, status: "no_handles" };
@@ -255,7 +351,9 @@ async function refreshIgBundle(
     }
 
     let inserted = 0;
-    const remaining = POSTS_PER_NICHE_PER_DAY - used;
+    const remaining = cap.applyDailyNicheCap
+      ? Math.min(cap.postsPerRun, POSTS_PER_NICHE_PER_DAY - usedToday)
+      : cap.postsPerRun;
     for (const post of data) {
       if (inserted >= remaining) break;
       const shortcode = (post.shortCode ?? post.shortcode) as string | undefined;
@@ -330,6 +428,12 @@ async function refreshIg(sql: SqlClient): Promise<{
   const startedAt = Date.now();
   const SOFT_TIMEOUT_MS = 240_000;
 
+  // Bundle global usa cap diário per-niche (compartilhado com Free).
+  const globalCap: IgBundleCap = {
+    postsPerRun: POSTS_PER_NICHE_PER_DAY,
+    applyDailyNicheCap: true,
+  };
+
   for (let i = 0; i < bundles.length; i += POOL) {
     if (Date.now() - startedAt > SOFT_TIMEOUT_MS) {
       const remaining = bundles.slice(i);
@@ -340,7 +444,7 @@ async function refreshIg(sql: SqlClient): Promise<{
     }
     const batch = bundles.slice(i, i + POOL);
     const settled = await Promise.allSettled(
-      batch.map((b) => refreshIgBundle(sql, apifyKey, b)),
+      batch.map((b) => refreshIgBundle(sql, apifyKey, b, globalCap)),
     );
     for (let j = 0; j < settled.length; j++) {
       const r = settled[j];
@@ -365,6 +469,113 @@ async function refreshIg(sql: SqlClient): Promise<{
     await new Promise((r) => setTimeout(r, 1000));
   }
   return { inserted: totalInserted, bundles: bundles.length, results };
+}
+
+/**
+ * Roda um bundle por user Pro com fontes IG próprias. Diferente do bundle
+ * global, não aplica cap diário per-niche (usuário pago tem direito a
+ * scraping independente). O freio é `MAX_POSTS_PER_USER_RUN` distribuído
+ * entre todos os bundles do user nesse run.
+ */
+async function refreshIgPerUser(sql: SqlClient): Promise<{
+  inserted: number;
+  users: number;
+  results: Array<{
+    user_id: string;
+    plan: PlanId;
+    bundles: number;
+    inserted: number;
+    status: string;
+    errorMsg?: string;
+  }>;
+}> {
+  const apifyKey = process.env.APIFY_API_KEY;
+  if (!apifyKey) {
+    return { inserted: 0, users: 0, results: [] };
+  }
+  const userBundles = await listIgBundlesByUser(sql);
+  const results: Array<{
+    user_id: string;
+    plan: PlanId;
+    bundles: number;
+    inserted: number;
+    status: string;
+    errorMsg?: string;
+  }> = [];
+  let totalInserted = 0;
+
+  const startedAt = Date.now();
+  const SOFT_TIMEOUT_MS = 240_000;
+
+  for (const u of userBundles) {
+    if (Date.now() - startedAt > SOFT_TIMEOUT_MS) {
+      results.push({
+        user_id: u.userId,
+        plan: u.plan,
+        bundles: u.bundles.length,
+        inserted: 0,
+        status: "skipped-timeout",
+      });
+      // Loga skip pra ficar visível no painel admin
+      await logCronRun(sql, {
+        cronType: "refresh-ig-user",
+        userId: u.userId,
+        status: "skipped",
+        errorMsg: "soft_timeout",
+      });
+      continue;
+    }
+
+    let userInserted = 0;
+    let lastError: string | undefined;
+    let userStatus: "success" | "error" | "rate_limited" = "success";
+
+    // Distribui MAX_POSTS_PER_USER_RUN entre os bundles do user.
+    const perBundleCap = Math.max(
+      30,
+      Math.floor(MAX_POSTS_PER_USER_RUN / Math.max(1, u.bundles.length)),
+    );
+
+    for (const bundle of u.bundles) {
+      const remainingForUser = MAX_POSTS_PER_USER_RUN - userInserted;
+      if (remainingForUser <= 0) {
+        userStatus = "rate_limited";
+        break;
+      }
+      const cap: IgBundleCap = {
+        postsPerRun: Math.min(perBundleCap, remainingForUser),
+        applyDailyNicheCap: false,
+      };
+      const r = await refreshIgBundle(sql, apifyKey, bundle, cap);
+      userInserted += r.inserted;
+      if (r.status === "error") {
+        userStatus = "error";
+        lastError = r.errorMsg;
+      }
+      // Pequeno espaçamento entre handles do mesmo user pra não martelar Apify
+      await new Promise((res) => setTimeout(res, 500));
+    }
+
+    totalInserted += userInserted;
+    results.push({
+      user_id: u.userId,
+      plan: u.plan,
+      bundles: u.bundles.length,
+      inserted: userInserted,
+      status: userStatus,
+      errorMsg: lastError,
+    });
+
+    await logCronRun(sql, {
+      cronType: "refresh-ig-user",
+      userId: u.userId,
+      postsAdded: userInserted,
+      status: userStatus === "rate_limited" ? "skipped" : userStatus,
+      errorMsg: lastError ? lastError.slice(0, 500) : undefined,
+    });
+  }
+
+  return { inserted: totalInserted, users: userBundles.length, results };
 }
 
 // ─── YouTube RSS (lightweight) ───────────────────────────────────────
@@ -479,11 +690,18 @@ export async function GET(req: Request) {
 
   if (auth.isDry) {
     const bundles = await listIgBundles(sql);
+    const userBundles = await listIgBundlesByUser(sql);
     return jsonResponse({
       ok: true,
       dry: true,
       news_sources: NEWS_TOP.length,
       ig_bundles: bundles.map((b) => ({ slug: b.slug, handles: b.handles.length })),
+      ig_user_bundles: userBundles.map((u) => ({
+        user_id: u.userId,
+        plan: u.plan,
+        bundles: u.bundles.map((b) => ({ slug: b.slug, handles: b.handles.length })),
+        total_handles: u.bundles.reduce((acc, b) => acc + b.handles.length, 0),
+      })),
       duration_ms: Date.now() - t0,
     });
   }
@@ -504,7 +722,7 @@ export async function GET(req: Request) {
     });
   }
 
-  // Instagram
+  // Instagram (global — fontes user_id IS NULL)
   try {
     const ig = await refreshIg(sql);
     summary.ig_inserted = ig.inserted;
@@ -519,6 +737,30 @@ export async function GET(req: Request) {
     summary.ig_error = err instanceof Error ? err.message : String(err);
     await logCronRun(sql, {
       cronType: "refresh-ig",
+      status: "error",
+      errorMsg: String(err).slice(0, 500),
+    });
+  }
+
+  // Instagram (per-user — fontes do user Pro/Max). Cron individual.
+  try {
+    const igUser = await refreshIgPerUser(sql);
+    summary.ig_user_inserted = igUser.inserted;
+    summary.ig_user_users = igUser.users;
+    summary.ig_user_results = igUser.results;
+    // Log agregado fica per-user dentro de refreshIgPerUser. Aqui só
+    // sinaliza saúde geral do passo.
+    if (igUser.users === 0) {
+      await logCronRun(sql, {
+        cronType: "refresh-ig-user",
+        status: "skipped",
+        errorMsg: "no_paid_users_with_ig_sources",
+      });
+    }
+  } catch (err) {
+    summary.ig_user_error = err instanceof Error ? err.message : String(err);
+    await logCronRun(sql, {
+      cronType: "refresh-ig-user",
       status: "error",
       errorMsg: String(err).slice(0, 500),
     });
