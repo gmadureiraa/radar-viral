@@ -39,7 +39,6 @@ import { toast } from "sonner";
 import { useActiveNiche } from "@/lib/niche-context";
 import {
   ALL_CURATED,
-  getCuratedByPlatform,
   type CuratedSource,
   type CuratedNiche,
   type CuratedPlatform,
@@ -119,6 +118,7 @@ export default function SettingsPage() {
   const [tab, setTab] = useState<PlatformTab>("all");
   const [mySources, setMySources] = useState<UserSourceRow[]>([]);
   const [disabledCuratedKeys, setDisabledCuratedKeys] = useState<Set<string>>(new Set());
+  const [curatedAvatars, setCuratedAvatars] = useState<Record<string, string | null>>({});
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState(false);
   const [sub, setSub] = useState<SubInfo | null>(null);
@@ -181,6 +181,33 @@ export default function SettingsPage() {
     void refreshDisabledCurated();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.data?.user?.id, active.id]);
+
+  // Resolve avatares das curadas em batch (cache 30d server-side)
+  useEffect(() => {
+    if (!session.data?.user?.id || curatedForNiche.length === 0) return;
+    const keys = curatedForNiche.map((c) => c.key);
+    let cancelled = false;
+    (async () => {
+      try {
+        const jwt = await getJwtToken();
+        const res = await fetch("/api/sources/curated/avatars", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
+          body: JSON.stringify({ keys }),
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { avatars: Record<string, string | null> };
+        if (!cancelled) {
+          setCuratedAvatars((prev) => ({ ...prev, ...data.avatars }));
+        }
+      } catch {
+        /* silencioso, fallback inicial */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session.data?.user?.id, active.id, curatedForNiche]);
 
   // Subscription
   useEffect(() => {
@@ -364,6 +391,7 @@ export default function SettingsPage() {
               <CuratedCard
                 key={c.key}
                 source={c}
+                avatarUrl={curatedAvatars[c.key] ?? null}
                 disabled={disabledCuratedKeys.has(c.key)}
                 onToggle={(d) => handleToggleCurated(c.key, d)}
               />
@@ -599,14 +627,18 @@ function MyCard({
 
 function CuratedCard({
   source,
+  avatarUrl,
   disabled,
   onToggle,
 }: {
   source: CuratedSource;
+  avatarUrl: string | null;
   disabled: boolean;
   onToggle: (currentlyDisabled: boolean) => void;
 }) {
+  const [imgErrored, setImgErrored] = useState(false);
   const initial = source.label.charAt(0).toUpperCase();
+  const showImage = !!avatarUrl && !imgErrored;
 
   return (
     <div
@@ -619,8 +651,19 @@ function CuratedCard({
         opacity: disabled ? 0.5 : 1,
       }}
     >
-      <div style={{ flexShrink: 0, width: 40, height: 40, borderRadius: "50%", border: "1.5px dashed var(--color-rdv-ink)", background: "var(--color-rdv-paper)", color: "var(--color-rdv-ink)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800 }}>
-        {initial}
+      <div style={{ flexShrink: 0, width: 40, height: 40, borderRadius: "50%", overflow: "hidden", border: "1.5px dashed var(--color-rdv-ink)", background: showImage ? "transparent" : "var(--color-rdv-paper)", color: "var(--color-rdv-ink)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800 }}>
+        {showImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={`/api/img?url=${encodeURIComponent(avatarUrl!)}`}
+            alt={source.label}
+            loading="lazy"
+            onError={() => setImgErrored(true)}
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          />
+        ) : (
+          initial
+        )}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
