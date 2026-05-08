@@ -1,9 +1,9 @@
 /**
  * Fontes curadas por nicho — catálogo enxuto e premium.
  *
- * Estrutura: 3 fontes por plataforma × 7 plataformas × 3 nichos = 63 fontes.
+ * Estrutura: 3 fontes por plataforma × 6 plataformas × 3 nichos = 54 fontes.
  *
- * Plataformas: instagram, youtube, tiktok, threads, twitter, rss, newsletter.
+ * Plataformas: instagram, youtube, tiktok, threads, rss, newsletter.
  * Nichos: crypto, marketing, ai.
  *
  * Comportamento:
@@ -22,7 +22,6 @@ export type CuratedPlatform =
   | "youtube"
   | "tiktok"
   | "threads"
-  | "twitter"
   | "rss"
   | "newsletter";
 
@@ -70,10 +69,6 @@ const CRYPTO: CuratedSource[] = [
   { key: key("crypto", "threads", "vitalik.eth"), niche: "crypto", platform: "threads", handle: "vitalik.eth", label: "Vitalik Buterin", detail: "Co-founder Ethereum", externalUrl: "https://threads.net/@vitalik.eth" },
   { key: key("crypto", "threads", "balajis"), niche: "crypto", platform: "threads", handle: "balajis", label: "Balaji Srinivasan", detail: "Crypto contrarian", externalUrl: "https://threads.net/@balajis" },
   { key: key("crypto", "threads", "documentingbtc"), niche: "crypto", platform: "threads", handle: "documentingbtc", label: "Documenting Bitcoin", externalUrl: "https://threads.net/@documentingbtc" },
-  // Twitter/X (3)
-  { key: key("crypto", "twitter", "VitalikButerin"), niche: "crypto", platform: "twitter", handle: "VitalikButerin", label: "Vitalik Buterin", detail: "Co-founder Ethereum", externalUrl: "https://twitter.com/VitalikButerin" },
-  { key: key("crypto", "twitter", "cz_binance"), niche: "crypto", platform: "twitter", handle: "cz_binance", label: "CZ", detail: "Ex-CEO Binance", externalUrl: "https://twitter.com/cz_binance" },
-  { key: key("crypto", "twitter", "DocumentingBTC"), niche: "crypto", platform: "twitter", handle: "DocumentingBTC", label: "Documenting BTC", externalUrl: "https://twitter.com/DocumentingBTC" },
   // RSS Notícias (3)
   { key: key("crypto", "rss", "portaldobitcoin"), niche: "crypto", platform: "rss", handle: "https://portaldobitcoin.uol.com.br/feed/", label: "Portal do Bitcoin", lang: "pt", externalUrl: "https://portaldobitcoin.uol.com.br" },
   { key: key("crypto", "rss", "coindesk"), niche: "crypto", platform: "rss", handle: "https://www.coindesk.com/arc/outboundfeeds/rss/", label: "CoinDesk", lang: "en", externalUrl: "https://www.coindesk.com" },
@@ -103,10 +98,6 @@ const MARKETING: CuratedSource[] = [
   { key: key("marketing", "threads", "hormozi"), niche: "marketing", platform: "threads", handle: "hormozi", label: "Alex Hormozi", externalUrl: "https://threads.net/@hormozi" },
   { key: key("marketing", "threads", "garyvee"), niche: "marketing", platform: "threads", handle: "garyvee", label: "Gary Vaynerchuk", externalUrl: "https://threads.net/@garyvee" },
   { key: key("marketing", "threads", "thejustinwelsh"), niche: "marketing", platform: "threads", handle: "thejustinwelsh", label: "Justin Welsh", detail: "Solopreneur", externalUrl: "https://threads.net/@thejustinwelsh" },
-  // Twitter/X (3)
-  { key: key("marketing", "twitter", "AlexHormozi"), niche: "marketing", platform: "twitter", handle: "AlexHormozi", label: "Alex Hormozi", externalUrl: "https://twitter.com/AlexHormozi" },
-  { key: key("marketing", "twitter", "garyvee"), niche: "marketing", platform: "twitter", handle: "garyvee", label: "Gary Vaynerchuk", externalUrl: "https://twitter.com/garyvee" },
-  { key: key("marketing", "twitter", "thejustinwelsh"), niche: "marketing", platform: "twitter", handle: "thejustinwelsh", label: "Justin Welsh", detail: "Solo content business", externalUrl: "https://twitter.com/thejustinwelsh" },
   // RSS Notícias (3)
   { key: key("marketing", "rss", "marketingbrew"), niche: "marketing", platform: "rss", handle: "https://www.marketingbrew.com/feed", label: "Marketing Brew", lang: "en", externalUrl: "https://www.marketingbrew.com" },
   { key: key("marketing", "rss", "searchengineland"), niche: "marketing", platform: "rss", handle: "https://searchengineland.com/feed", label: "Search Engine Land", lang: "en", externalUrl: "https://searchengineland.com" },
@@ -136,10 +127,6 @@ const AI: CuratedSource[] = [
   { key: key("ai", "threads", "openai"), niche: "ai", platform: "threads", handle: "openai", label: "OpenAI", externalUrl: "https://threads.net/@openai" },
   { key: key("ai", "threads", "anthropicai"), niche: "ai", platform: "threads", handle: "anthropicai", label: "Anthropic", externalUrl: "https://threads.net/@anthropicai" },
   { key: key("ai", "threads", "perplexity.ai"), niche: "ai", platform: "threads", handle: "perplexity.ai", label: "Perplexity", externalUrl: "https://threads.net/@perplexity.ai" },
-  // Twitter/X (3)
-  { key: key("ai", "twitter", "OpenAI"), niche: "ai", platform: "twitter", handle: "OpenAI", label: "OpenAI", externalUrl: "https://twitter.com/OpenAI" },
-  { key: key("ai", "twitter", "AnthropicAI"), niche: "ai", platform: "twitter", handle: "AnthropicAI", label: "Anthropic", externalUrl: "https://twitter.com/AnthropicAI" },
-  { key: key("ai", "twitter", "sama"), niche: "ai", platform: "twitter", handle: "sama", label: "Sam Altman", detail: "CEO OpenAI", externalUrl: "https://twitter.com/sama" },
   // RSS Notícias (3)
   { key: key("ai", "rss", "anthropic-news"), niche: "ai", platform: "rss", handle: "https://www.anthropic.com/news/rss", label: "Anthropic News", lang: "en", externalUrl: "https://www.anthropic.com/news" },
   { key: key("ai", "rss", "openai-blog"), niche: "ai", platform: "rss", handle: "https://openai.com/blog/rss.xml", label: "OpenAI Blog", lang: "en", externalUrl: "https://openai.com/blog" },

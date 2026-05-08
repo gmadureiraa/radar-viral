@@ -55,7 +55,6 @@ const VALID_PLATFORMS = new Set([
   "youtube",
   "threads",
   "tiktok",
-  "twitter",
   "rss",
   "newsletter",
   "linkedin",

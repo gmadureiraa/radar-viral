@@ -17,7 +17,6 @@ import {
   CreditCard,
   Gift,
   AtSign,
-  Hash,
   Music2,
 } from "lucide-react";
 import {
@@ -52,7 +51,6 @@ const PRIMARY_NAV: NavItem[] = [
   { href: "/app/threads", label: "Threads", icon: AtSign, badge: "NEW" },
   { href: "/app/tiktok", label: "TikTok", icon: Music2, badge: "NEW" },
   { href: "/app/youtube", label: "YouTube", icon: Youtube },
-  { href: "/app/twitter", label: "X / Twitter", icon: Hash },
   { href: "/app/news", label: "Notícias", icon: Newspaper },
   { href: "/app/saved", label: "Salvos", icon: BookmarkCheck },
 ];

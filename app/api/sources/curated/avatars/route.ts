@@ -10,7 +10,7 @@
  *    (evita scrapear na cara dura toda renderização pra perfis impossíveis).
  *
  * Plataformas suportadas: instagram/youtube/tiktok/threads.
- * twitter/rss/newsletter retornam null (sem og:image confiável).
+ * rss/newsletter retornam null (sem og:image confiável).
  *
  * Validação: cada key precisa existir em ALL_CURATED. Limite 100 keys/req.
  */
@@ -109,7 +109,7 @@ export async function POST(req: Request) {
       continue;
     }
     if (!pickResolvable(c)) {
-      // Persiste null pra evitar scrape repetido em rss/newsletter/twitter
+      // Persiste null pra evitar scrape repetido em rss/newsletter
       result[key] = null;
       toResolve.push(c); // ainda persiste no DB, mas resolve = null
       continue;

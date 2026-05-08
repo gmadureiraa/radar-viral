@@ -72,7 +72,7 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Fontes monitoradas:</strong> URLs RSS, perfis públicos de
-              Instagram/TikTok/Twitter/Threads/LinkedIn, palavras-chave que
+              Instagram/TikTok/Threads, palavras-chave que
               você cadastra para receber sinais.
             </li>
             <li>
@@ -145,7 +145,7 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Apify</strong> — coleta de metadados públicos
-              (Instagram, TikTok, Twitter, Threads, LinkedIn).
+              (Instagram, TikTok, Threads).
             </li>
             <li>
               <strong>Resend</strong> — envio de e-mails transacionais.

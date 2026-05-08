@@ -57,8 +57,8 @@ export default function TermsPage() {
           <p>
             Radar Viral (&quot;Serviço&quot;) é um produto da Kaleidos Digital
             (&quot;Kaleidos&quot;, &quot;nós&quot;) que oferece monitoramento
-            de fontes públicas (notícias, Instagram, TikTok, Twitter, Threads,
-            LinkedIn) com geração de briefs editoriais por IA via web app em{" "}
+            de fontes públicas (notícias, Instagram, TikTok, Threads) com
+            geração de briefs editoriais por IA via web app em{" "}
             <a className="rdv-link" href="https://radar.kaleidos.com.br">
               radar.kaleidos.com.br
             </a>

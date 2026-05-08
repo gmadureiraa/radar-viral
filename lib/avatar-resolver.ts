@@ -3,7 +3,6 @@
  * do meta `og:image` da página pública de perfil. Sem dep de APIs pagas.
  *
  * Fallback: retorna `null` se a página não carrega ou não tem og:image.
- * X/Twitter não suportado (anti-bot agressivo) — sempre retorna null.
  *
  * Usado por:
  *  - /api/sources POST: ao adicionar fonte, popula avatar_url
@@ -96,10 +95,6 @@ export async function resolveSourceAvatar(
     case "threads":
       url = `https://www.threads.net/@${encodeURIComponent(handle)}`;
       break;
-    case "twitter":
-      // X tem anti-bot agressivo — scrape do og:image só funciona via
-      // proxy ou Apify (paid). Skip silencioso.
-      return { avatarUrl: null, displayName: null };
     default:
       return { avatarUrl: null, displayName: null };
   }

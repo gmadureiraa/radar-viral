@@ -15,10 +15,10 @@
  *   Apify Threads scrape: ~$0.0005 por post real (apify/threads-scraper)
  *     10 handles × 12 posts/run × 30 runs/mês = 3.600 posts
  *     3.600 × $0.0005 = ~$1.80/mês (Phase 2 — só ativo c/ kill-switch off)
- *   Apify X scrape (apidojo/twitter-scraper-lite): ~$0.0004 por tweet real
- *     8 X handles × 5 tweets/run × 30 runs/mês = 1.200 tweets
- *     1.200 × $0.0004 = ~$0.48/mês (Phase 3 — só ativo c/ kill-switch off,
- *     cap conservador em 5 tweets/handle/run porque actor cobra por item)
+ *   X/Twitter: REMOVIDO (2026-05-08) — actor lite retornava demo no FREE
+ *     Apify e cobrança pro plan não justificava ROI. Decisão Gabriel:
+ *     "tira o X do radar". Pode voltar no futuro com actor pago + plan
+ *     STARTER+ se houver demanda real.
  *   YouTube RSS: $0 (RSS gratuito)
  *   News RSS: $0 (RSS gratuito)
  *   Gmail (newsletters): $0 (user-side, com cap quota free)
@@ -73,7 +73,6 @@ export const PLANS_RDV = {
     newslettersCap: 3,
     tiktokHandlesCap: 3,
     threadsHandlesCap: 3,
-    twitterHandlesCap: 3,
     /** Posts coletados por handle/run no cron Apify (TikTok/Threads). */
     postsPerHandleApify: 3,
     /** Briefs IA mensais (sentinel: -1 = ilimitado) */
@@ -110,7 +109,6 @@ export const PLANS_RDV = {
     newslettersCap: 12,
     tiktokHandlesCap: 10,
     threadsHandlesCap: 10,
-    twitterHandlesCap: 8,
     /** Posts coletados por handle/run (Apify TikTok/Threads). */
     postsPerHandleApify: 12,
     /** Pro pode trocar handle livremente. */
@@ -125,10 +123,9 @@ export const PLANS_RDV = {
       "✓ Tudo do Free",
       "Radar individual: suas fontes, seu DB, cron diário próprio",
       "Até 2 nichos simultâneos",
-      "15 handles IG · 8 canais YouTube · 10 TikTok · 10 Threads · 8 X/Twitter · 15 RSS · 12 newsletters",
+      "15 handles IG · 8 canais YouTube · 10 TikTok · 10 Threads · 15 RSS · 12 newsletters",
       "TikTok scraping incluído",
       "Threads scraping incluído",
-      "X/Twitter scraping incluído",
       "Brief IA ilimitado e personalizado pelo seu nicho",
       "Agente IA conversacional dedicado por nicho",
       "Suporte por email",
@@ -155,7 +152,6 @@ export const PLANS_RDV = {
     newslettersCap: 12,
     tiktokHandlesCap: 10,
     threadsHandlesCap: 10,
-    twitterHandlesCap: 8,
     postsPerHandleApify: 12,
     canEditHandle: true,
     briefsMonthlyCap: -1,
@@ -208,8 +204,6 @@ export function getPlanCapForPlatform(
       return p.tiktokHandlesCap;
     case "threads":
       return p.threadsHandlesCap;
-    case "twitter":
-      return p.twitterHandlesCap;
     default:
       return null;
   }

@@ -27,7 +27,6 @@ import {
   Play,
   Music2,
   AtSign,
-  Hash,
   Rss,
   ExternalLink,
   Trash2,
@@ -57,7 +56,6 @@ const PLATFORM_TABS: PlatformTab[] = [
   "youtube",
   "tiktok",
   "threads",
-  "twitter",
   "rss",
   "newsletter",
 ];
@@ -74,12 +72,12 @@ function platformLabel(p: PlatformTab): string {
       return "TikTok";
     case "threads":
       return "Threads";
-    case "twitter":
-      return "X / Twitter";
     case "rss":
       return "RSS";
     case "newsletter":
       return "Newsletter";
+    default:
+      return p;
   }
 }
 
@@ -95,12 +93,12 @@ function platformIcon(p: PlatformTab): typeof Instagram {
       return Music2;
     case "threads":
       return AtSign;
-    case "twitter":
-      return Hash;
     case "rss":
       return Rss;
     case "newsletter":
       return Mail;
+    default:
+      return Layers;
   }
 }
 
@@ -858,7 +856,6 @@ function AddSourceModal({
             <option value="youtube">YouTube</option>
             <option value="tiktok">TikTok</option>
             <option value="threads">Threads</option>
-            <option value="twitter">X / Twitter</option>
             <option value="rss">RSS Notícias</option>
             <option value="newsletter">Newsletter</option>
           </select>
@@ -951,11 +948,11 @@ function placeholderForPlatform(p: CuratedPlatform): string {
       return "@usuario (sem @)";
     case "threads":
       return "username (sem @)";
-    case "twitter":
-      return "username (sem @)";
     case "rss":
       return "https://site.com/feed";
     case "newsletter":
       return "newsletter@dominio.com";
+    default:
+      return "";
   }
 }
