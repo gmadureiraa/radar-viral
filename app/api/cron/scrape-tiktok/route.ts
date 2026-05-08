@@ -1,10 +1,11 @@
 /**
  * /api/cron/scrape-tiktok — Schedule diário 11:00 UTC.
  *
- * Plano Max only. Apify actor `clockworks/tiktok-scraper` (~\$0.01/run).
+ * Pro + Max (Max grandfathered). Apify actor `clockworks/tiktok-scraper`
+ * (~\$0.01/run).
  *
  * Pipeline:
- *  1. Lista users com plan='max' active
+ *  1. Lista users com plan IN ('pro','max') active
  *  2. Pra cada user, lista tracked_sources(platform='tiktok',active=true)
  *  3. Roda actor → upsert em tiktok_posts
  *
@@ -12,12 +13,9 @@
  *
  * Auth + flag + dry-run idem refresh/brief.
  *
- * NOTA: a chamada Apify real está COMENTADA por padrão pra evitar custo
- * inadvertido até o actor estar configurado e os caps testados. Para
- * ativar:
- *  1. Confirmar conta Apify tem actor clockworks/tiktok-scraper instalado
- *  2. Descomentar o bloco `realApifyCall` abaixo
- *  3. Setar APIFY_API_KEY no Vercel
+ * Kill-switch: env `TIKTOK_SCRAPE_DISABLED=true` pula o Apify call sem
+ * precisar deploy. Status do log = 'skipped' / errorMsg='kill_switch'.
+ * Padrão = false (scraping ativo se env do Apify estiver setada).
  */
 
 import { checkCronAuth, isCronEnabled, getCronSql, logCronRun, jsonResponse } from "@/lib/cron-utils";
@@ -69,7 +67,12 @@ async function ensureTiktokPostsTable(sql: SqlClient): Promise<void> {
 
 // ─── Sources ─────────────────────────────────────────────────────────
 
-async function listMaxUserTiktokSources(sql: SqlClient): Promise<MaxUserSource[]> {
+/**
+ * Lê fontes TikTok dos users em planos pagos (Pro novo + Max grandfathered).
+ * Renomeado de listMaxUserTiktokSources em 2026-05-08 quando Pro absorveu
+ * TikTok scraping (era exclusivo Max antes).
+ */
+async function listPaidUserTiktokSources(sql: SqlClient): Promise<MaxUserSource[]> {
   try {
     const rows = (await sql`
       SELECT ts.user_id,
@@ -81,24 +84,23 @@ async function listMaxUserTiktokSources(sql: SqlClient): Promise<MaxUserSource[]
           ON usr.user_id = ts.user_id
        WHERE ts.platform = 'tiktok'
          AND COALESCE(ts.active, TRUE) = TRUE
-         AND usr.plan = 'max'
+         AND usr.plan IN ('pro', 'max')
          AND usr.status = 'active'
     `) as Array<MaxUserSource>;
     return rows;
   } catch (err) {
-    console.warn("[scrape-tiktok] listMaxUserTiktokSources fallback:", err);
+    console.warn("[scrape-tiktok] listPaidUserTiktokSources fallback:", err);
     return [];
   }
 }
 
-// ─── Apify call (COMMENTED OUT por default — custos) ─────────────────
+// ─── Apify call ──────────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function _realApifyCall(
+async function realApifyCall(
   apifyKey: string,
   handles: string[],
 ): Promise<Array<Record<string, unknown>>> {
-  // ⚠️ Custo real: ~\$0.01 × N profiles. Ativar só quando actor for testado.
+  // Custo real: ~\$0.01 × N profiles. Kill-switch via TIKTOK_SCRAPE_DISABLED.
   const url = `https://api.apify.com/v2/acts/clockworks~tiktok-scraper/run-sync-get-dataset-items?token=${apifyKey}&timeout=180`;
   const profiles = handles.map((h) => `https://www.tiktok.com/@${h.replace(/^@/, "")}`);
   const res = await fetch(url, {
@@ -198,15 +200,17 @@ export async function GET(req: Request) {
     );
   }
 
-  const sources = await listMaxUserTiktokSources(sql);
+  const sources = await listPaidUserTiktokSources(sql);
+  const killSwitchOn = process.env.TIKTOK_SCRAPE_DISABLED === "true";
 
   if (auth.isDry) {
     return jsonResponse({
       ok: true,
       dry: true,
-      max_user_handles: sources.length,
+      paid_user_handles: sources.length,
       sample: sources.slice(0, 5).map((s) => ({ user: s.user_id, handle: s.handle, niche: s.niche_slug })),
-      apify_call: "DISABLED — descomentar _realApifyCall em prod",
+      kill_switch: killSwitchOn ? "ENABLED — TIKTOK_SCRAPE_DISABLED=true" : "off",
+      apify_call: killSwitchOn ? "WILL_SKIP" : "ENABLED",
       duration_ms: Date.now() - t0,
     });
   }
@@ -215,11 +219,11 @@ export async function GET(req: Request) {
     await logCronRun(sql, {
       cronType: "scrape-tiktok",
       status: "skipped",
-      errorMsg: "no_max_users_with_tiktok_sources",
+      errorMsg: "no_paid_users_with_tiktok_sources",
     });
     return jsonResponse({
       ok: true,
-      skipped: "Nenhum user Max com tracked_sources(platform=tiktok)",
+      skipped: "Nenhum user Pro/Max com tracked_sources(platform=tiktok)",
       duration_ms: Date.now() - t0,
     });
   }
@@ -244,15 +248,32 @@ export async function GET(req: Request) {
     byUser.get(s.user_id)!.push(s);
   }
 
+  // Kill-switch global: pula Apify completo, loga skipped por user, retorna 200.
+  if (killSwitchOn) {
+    for (const [userId, userSources] of byUser) {
+      await logCronRun(sql, {
+        cronType: "scrape-tiktok",
+        userId,
+        status: "skipped",
+        errorMsg: "kill_switch",
+      });
+      void userSources;
+    }
+    return jsonResponse({
+      ok: true,
+      skipped: "TIKTOK_SCRAPE_DISABLED=true (kill-switch)",
+      users: byUser.size,
+      duration_ms: Date.now() - t0,
+    });
+  }
+
   const results: Array<{ user_id: string; handles: number; inserted: number; status: string }> = [];
   let totalInserted = 0;
 
   for (const [userId, userSources] of byUser) {
     const handles = userSources.map((s) => s.handle);
     try {
-      // ⚠️ Apify call REAL desativada por padrão. Descomentar pra ativar:
-      // const data = await _realApifyCall(apifyKey, handles);
-      const data: Array<Record<string, unknown>> = [];
+      const data = await realApifyCall(apifyKey, handles);
 
       let inserted = 0;
       for (const post of data) {
@@ -269,7 +290,7 @@ export async function GET(req: Request) {
         user_id: userId,
         handles: handles.length,
         inserted,
-        status: data.length === 0 ? "apify_disabled" : "success",
+        status: data.length === 0 ? "no_data" : "success",
       });
 
       await logCronRun(sql, {
@@ -295,7 +316,7 @@ export async function GET(req: Request) {
     ok: true,
     total_inserted: totalInserted,
     users: byUser.size,
-    apify_call: "DISABLED — descomentar _realApifyCall pra ativar",
+    kill_switch: "off",
     results,
     duration_ms: Date.now() - t0,
   });
