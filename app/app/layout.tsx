@@ -16,6 +16,7 @@ import {
   X,
   CreditCard,
   Gift,
+  AtSign,
 } from "lucide-react";
 import {
   useNeonSession,
@@ -46,6 +47,7 @@ interface NavItem {
 const PRIMARY_NAV: NavItem[] = [
   { href: "/app", label: "Dashboard", icon: LayoutDashboard },
   { href: "/app/instagram", label: "Instagram", icon: Instagram },
+  { href: "/app/threads", label: "Threads", icon: AtSign, badge: "NEW" },
   { href: "/app/youtube", label: "YouTube", icon: Youtube },
   { href: "/app/news", label: "Notícias", icon: Newspaper },
   { href: "/app/saved", label: "Salvos", icon: BookmarkCheck },
