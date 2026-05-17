@@ -45,6 +45,7 @@ import {
 import { useNeonSession, getJwtToken } from "@/lib/auth-client";
 import { NichePillBar } from "@/app/app/_components/niche-pill-bar";
 import type { UserSourceRow } from "@/app/api/sources/route";
+import { track } from "@/lib/analytics";
 
 // ─── Types e mapeamentos ──────────────────────────────────────────────
 
@@ -787,6 +788,7 @@ function AddSourceModal({
         throw new Error(data.error ?? `HTTP ${res.status}`);
       }
       toast.success("Fonte adicionada");
+      track("source_added", { platform, niche, handle: handle.trim() });
       onSaved();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro");

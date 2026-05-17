@@ -19,6 +19,8 @@
     "jose": "^5.9.6",
     "lucide-react": "^0.474.0",
     "next": "^16.0.0",
+    "posthog-js": "^1.373.5",
+    "posthog-node": "^5.34.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "sonner": "^1.7.4",

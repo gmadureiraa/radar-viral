@@ -29,6 +29,7 @@ import {
 import { toast } from "sonner";
 import { useNeonSession, getJwtToken } from "@/lib/auth-client";
 import { useActiveNiche } from "@/lib/niche-context";
+import { track } from "@/lib/analytics";
 import { TopNewsSection } from "./_components/top-news-section";
 import { TopInstagramSection } from "./_components/top-instagram-section";
 import { TopYouTubeSection } from "./_components/top-youtube-section";
@@ -112,6 +113,14 @@ export default function DashboardPage() {
         if (!cancel) {
           setBrief(briefData.brief);
           setPreviousBrief(briefData.previous);
+          if (briefData.brief) {
+            track("brief_opened", {
+              niche: niche.id,
+              brief_date: briefData.brief.brief_date,
+              ideas_count: briefData.brief.carousel_ideas?.length ?? 0,
+              hot_topics_count: briefData.brief.hot_topics?.length ?? 0,
+            });
+          }
         }
 
         if (subRes.ok) {
@@ -959,6 +968,7 @@ function IdeaCard({
           href={svBridgeUrl(idea.hook, idea.angle)}
           target="_blank"
           rel="noreferrer"
+          onClick={() => track("idea_clicked", { destination: "sv", hook: idea.hook })}
           className="rdv-btn rdv-btn-ghost"
           style={{ padding: "5px 10px", fontSize: 9 }}
         >
@@ -968,6 +978,7 @@ function IdeaCard({
           href={rvBridgeUrl(idea.hook)}
           target="_blank"
           rel="noreferrer"
+          onClick={() => track("idea_clicked", { destination: "rv", hook: idea.hook })}
           className="rdv-btn rdv-btn-ghost"
           style={{ padding: "5px 10px", fontSize: 9 }}
         >

@@ -18,3 +18,4 @@ tsconfig.tsbuildinfo
 
 # Local cron-test env (puxado via vercel env pull pra disparo manual)
 .env.cron-test
+.env.audit

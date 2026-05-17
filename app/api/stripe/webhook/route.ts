@@ -19,6 +19,7 @@ import { getCuratedSources } from "@/lib/sources-curated";
 import { PLANS_RDV } from "@/lib/pricing";
 import { applyReferralReward } from "@/lib/referrals";
 import { fireResendEvent } from "@/lib/resend";
+import { captureServerEvent } from "@/lib/posthog-server";
 
 export const runtime = "nodejs";
 
@@ -253,6 +254,12 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   } catch (err) {
     console.warn("[webhook] fireResendEvent radar.upgraded falhou:", err);
   }
+
+  await captureServerEvent(userId, "purchase_completed", {
+    plan: planId,
+    price_cents: PLANS_RDV[planId]?.priceMonthly ?? 0,
+    stripe_subscription_id: subscriptionId,
+  });
 }
 
 /**
@@ -367,6 +374,11 @@ async function handleSubscriptionUpdated(sub: Stripe.Subscription) {
           stripe_subscription_id: sub.id,
           source: "subscription.updated",
         });
+        await captureServerEvent(userId, "subscription_updated", {
+          plan: planId,
+          previous_plan: previousPlan ?? "free",
+          price_cents: priceCents,
+        });
       }
       if (justScheduledCancel) {
         const periodEndIso = new Date(
@@ -381,6 +393,11 @@ async function handleSubscriptionUpdated(sub: Stripe.Subscription) {
           cancel_at_period_end: true,
           current_period_end: periodEndIso,
           source: "subscription.updated",
+        });
+        await captureServerEvent(userId, "subscription_canceled", {
+          plan: planId,
+          cancel_at_period_end: true,
+          current_period_end: periodEndIso,
         });
       }
     }
@@ -440,6 +457,10 @@ async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
         stripe_subscription_id: sub.id,
         cancel_at_period_end: false,
         source: "subscription.deleted",
+      });
+      await captureServerEvent(userId, "subscription_canceled", {
+        previous_plan: previousPlan ?? "unknown",
+        reason: "subscription_deleted",
       });
     } catch (err) {
       console.warn("[webhook] fireResendEvent radar.canceled falhou:", err);
@@ -516,6 +537,11 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
         : null,
       hosted_invoice_url: hostedInvoiceUrl,
       source: "invoice.payment_failed",
+    });
+    await captureServerEvent(userId, "payment_failed", {
+      plan: planId,
+      amount_due_cents: amountDue,
+      attempt_count: attemptCount,
     });
   } catch (err) {
     console.warn("[webhook] fireResendEvent radar.payment.failed falhou:", err);

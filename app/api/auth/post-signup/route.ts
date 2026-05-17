@@ -22,6 +22,7 @@
 import { NextResponse } from "next/server";
 import { requireUserId } from "@/lib/server-auth";
 import { upsertLeadInAudience, fireResendEvent } from "@/lib/resend";
+import { captureServerEvent } from "@/lib/posthog-server";
 
 export const runtime = "nodejs";
 
@@ -74,6 +75,12 @@ export async function POST(req: Request) {
       plan: "free",
     }),
   ]);
+
+  await captureServerEvent(user.id, "user_signed_up", {
+    method: source,
+    email: user.email,
+    plan: "free",
+  });
 
   return NextResponse.json({ ok: true });
 }
