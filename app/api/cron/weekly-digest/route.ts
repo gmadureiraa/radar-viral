@@ -51,7 +51,7 @@ interface TrendRow {
 }
 
 const DASHBOARD_URL =
-  process.env.RADAR_DASHBOARD_URL ?? "https://radar.kaleidos.com.br/dashboard";
+  process.env.RADAR_DASHBOARD_URL ?? "https://radar.kaleidos.com.br/app";
 
 function formatNumber(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return "0";

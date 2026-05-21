@@ -44,7 +44,7 @@ interface PowerUserRow {
 }
 
 const DASHBOARD_URL =
-  process.env.RADAR_DASHBOARD_URL ?? "https://radar.kaleidos.com.br/dashboard";
+  process.env.RADAR_DASHBOARD_URL ?? "https://radar.kaleidos.com.br/app";
 
 async function listPowerUsers(sql: SqlClient): Promise<PowerUserRow[]> {
   const rows = (await sql`

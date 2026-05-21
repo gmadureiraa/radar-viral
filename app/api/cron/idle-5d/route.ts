@@ -37,7 +37,7 @@ interface IdleUserRow {
 }
 
 const DASHBOARD_URL =
-  process.env.RADAR_DASHBOARD_URL ?? "https://radar.kaleidos.com.br/dashboard";
+  process.env.RADAR_DASHBOARD_URL ?? "https://radar.kaleidos.com.br/app";
 
 async function listIdleUsers(sql: SqlClient): Promise<IdleUserRow[]> {
   const rows = (await sql`
