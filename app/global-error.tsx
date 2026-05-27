@@ -28,8 +28,8 @@ export default function GlobalError({
     <html lang="pt-BR">
       <body
         style={{
-          background: "#F5F1E8",
-          color: "#0A0908",
+          background: "#FAFAFA",
+          color: "#141414",
           minHeight: "100vh",
           margin: 0,
           fontFamily:
@@ -45,8 +45,8 @@ export default function GlobalError({
             maxWidth: 480,
             width: "100%",
             background: "#ECECE6",
-            border: "1.5px solid #0A0908",
-            boxShadow: "4px 4px 0 0 #0A0908",
+            border: "1.5px solid #141414",
+            boxShadow: "4px 4px 0 0 #141414",
             padding: "32px 28px",
           }}
         >
@@ -122,8 +122,8 @@ export default function GlobalError({
               padding: "12px 20px",
               background: "#FF3D2E",
               color: "white",
-              border: "1.5px solid #0A0908",
-              boxShadow: "3px 3px 0 0 #0A0908",
+              border: "1.5px solid #141414",
+              boxShadow: "3px 3px 0 0 #141414",
               fontFamily:
                 "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
               fontSize: 11,

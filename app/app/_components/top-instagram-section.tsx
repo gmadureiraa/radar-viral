@@ -535,7 +535,7 @@ function CompactPlaceholder({
           height: 36,
           borderRadius: "50%",
           background: "var(--color-rdv-ink)",
-          color: "white",
+          color: "var(--color-rdv-paper)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",

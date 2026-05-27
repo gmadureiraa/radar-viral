@@ -278,7 +278,7 @@ function Landing() {
               top: -12,
               left: 24,
               background: "var(--color-rdv-rec)",
-              color: "white",
+              color: "var(--color-rdv-cream)",
               fontSize: 10,
               fontWeight: 800,
               letterSpacing: "0.16em",
@@ -417,7 +417,7 @@ function Landing() {
               top: -12,
               right: 16,
               background: "var(--color-rdv-rec)",
-              color: "white",
+              color: "var(--color-rdv-cream)",
               fontSize: 10,
               fontWeight: 800,
               letterSpacing: "0.16em",
@@ -477,7 +477,7 @@ function Landing() {
           textAlign: "center",
         }}
       >
-        <div className="rdv-eyebrow" style={{ justifyContent: "center", color: "rgba(245,241,232,0.6)" }}>
+        <div className="rdv-eyebrow" style={{ justifyContent: "center", color: "var(--color-rdv-paper)", opacity: 0.7 }}>
           <span className="rdv-rec-dot" /> ENTRA NA WAVE
         </div>
         <h2

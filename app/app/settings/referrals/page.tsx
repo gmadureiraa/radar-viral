@@ -98,15 +98,15 @@ function statusLabel(status: ReferralItem["status"]): {
     case "pending":
       return {
         label: "Aguardando",
-        bg: "rgba(10,9,8,0.06)",
-        fg: "#0A0908",
+        bg: "var(--color-rdv-soft)",
+        fg: "var(--color-rdv-ink)",
       };
     case "expired":
     default:
       return {
         label: "Expirado",
-        bg: "rgba(10,9,8,0.04)",
-        fg: "#6B6660",
+        bg: "var(--color-rdv-soft)",
+        fg: "var(--color-rdv-muted)",
       };
   }
 }

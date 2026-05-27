@@ -18,7 +18,6 @@ import {
   Repeat2,
   RefreshCw,
   Search,
-  Loader2,
   ExternalLink,
   AtSign,
 } from "lucide-react";
@@ -26,6 +25,7 @@ import Link from "next/link";
 import { useActiveNiche } from "@/lib/niche-context";
 import { getJwtToken } from "@/lib/auth-client";
 import { imgProxy } from "@/lib/img-proxy";
+import { SkeletonCard } from "@/components/skeleton-card";
 import type { ThreadsPostRow } from "@/app/api/data/threads/route";
 
 type SortBy = "recent" | "likes" | "engagement";
@@ -127,7 +127,7 @@ export default function ThreadsPage() {
           style={{
             padding: "8px 12px",
             border: "1.5px solid var(--color-rdv-ink)",
-            background: "white",
+            background: "var(--color-rdv-card)",
             fontFamily: "var(--font-geist-mono)",
             fontSize: 11,
             fontWeight: 700,
@@ -146,7 +146,7 @@ export default function ThreadsPage() {
             alignItems: "center",
             gap: 0,
             border: "1.5px solid var(--color-rdv-ink)",
-            background: "white",
+            background: "var(--color-rdv-card)",
             flex: "1 1 240px",
             maxWidth: 320,
           }}
@@ -180,8 +180,14 @@ export default function ThreadsPage() {
       )}
 
       {loading && posts.length === 0 && (
-        <div style={{ padding: 60, display: "flex", justifyContent: "center" }}>
-          <Loader2 size={24} className="rdv-spin" />
+        <div
+          role="status"
+          aria-label="Carregando posts do Threads"
+          style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 14 }}
+        >
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonCard key={i} media={false} />
+          ))}
         </div>
       )}
 
@@ -266,7 +272,7 @@ function ThreadsCard({ post }: { post: ThreadsPostRow }) {
             height: 28,
             borderRadius: "50%",
             background: "var(--color-rdv-ink)",
-            color: "white",
+            color: "var(--color-rdv-paper)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",

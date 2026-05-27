@@ -62,7 +62,7 @@ export default function AppError({
           style={{
             fontSize: 14,
             lineHeight: 1.55,
-            color: "rgba(10,9,8,0.72)",
+            color: "var(--color-rdv-muted)",
             margin: "0 0 18px",
           }}
         >
@@ -75,7 +75,7 @@ export default function AppError({
             style={{
               fontSize: 10,
               letterSpacing: "0.08em",
-              color: "rgba(10,9,8,0.5)",
+              color: "var(--color-rdv-muted)",
               marginBottom: 18,
             }}
           >

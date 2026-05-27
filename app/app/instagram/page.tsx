@@ -18,7 +18,6 @@ import {
   Layers,
   RefreshCw,
   Search,
-  Loader2,
   ExternalLink,
   Instagram,
 } from "lucide-react";
@@ -27,6 +26,7 @@ import { getJwtToken } from "@/lib/auth-client";
 import { igPostScore, igScoreTier } from "@/lib/ig-score";
 import { imgProxy } from "@/lib/img-proxy";
 import { PostDetailModal, type PostDetail } from "@/components/post-detail-modal";
+import { SkeletonCard } from "@/components/skeleton-card";
 import type { InstagramPostRow } from "@/app/api/data/instagram/posts/route";
 
 type TabId = "all" | "reels" | "carousel" | "image";
@@ -116,7 +116,7 @@ export default function InstagramPage() {
           style={{
             padding: "8px 12px",
             border: "1.5px solid var(--color-rdv-ink)",
-            background: "white",
+            background: "var(--color-rdv-card)",
             fontFamily: "var(--font-geist-mono)",
             fontSize: 11,
             fontWeight: 700,
@@ -135,7 +135,7 @@ export default function InstagramPage() {
             alignItems: "center",
             gap: 0,
             border: "1.5px solid var(--color-rdv-ink)",
-            background: "white",
+            background: "var(--color-rdv-card)",
             flex: "1 1 240px",
             maxWidth: 320,
           }}
@@ -158,22 +158,56 @@ export default function InstagramPage() {
       )}
 
       {loading && posts.length === 0 && (
-        <div style={{ padding: 60, display: "flex", justifyContent: "center" }}>
-          <Loader2 size={24} className="rdv-spin" />
+        <div
+          role="status"
+          aria-label="Carregando posts"
+          style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}
+        >
+          {Array.from({ length: 8 }).map((_, i) => (
+            <SkeletonCard key={i} aspectRatio="4/5" />
+          ))}
         </div>
       )}
 
       {!loading && filteredPosts.length === 0 && posts.length === 0 && (
-        <div className="rdv-card" style={{ padding: 32, textAlign: "center" }}>
-          <p style={{ fontSize: 14, color: "var(--color-rdv-muted)", marginBottom: 12 }}>
-            Sem posts pra esse nicho ainda.
+        <div
+          className="rdv-card"
+          style={{ padding: "32px 28px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}
+        >
+          <Instagram size={32} style={{ color: "var(--color-rdv-muted)", marginBottom: 4 }} />
+          <h2 className="rdv-display" style={{ fontSize: 22, lineHeight: 1.15 }}>
+            Sem posts em <em>{niche.label}</em> ainda.
+          </h2>
+          <p style={{ fontSize: 13.5, color: "var(--color-rdv-muted)", lineHeight: 1.5, maxWidth: 440 }}>
+            O radar ainda não capturou posts desse nicho. A coleta roda diariamente,
+            então volta mais tarde ou troca de nicho na sidebar.
           </p>
-          <p
-            className="rdv-mono"
-            style={{ fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-rdv-muted)" }}
-          >
-            Cron `/api/cron/refresh` da v1 popula às 9h UTC todo dia
+        </div>
+      )}
+
+      {!loading && filteredPosts.length === 0 && posts.length > 0 && (
+        <div
+          className="rdv-card"
+          style={{ padding: "28px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}
+        >
+          <Search size={28} style={{ color: "var(--color-rdv-muted)" }} />
+          <p style={{ fontSize: 13.5, color: "var(--color-rdv-muted)", lineHeight: 1.5, maxWidth: 420 }}>
+            Nenhum post bate com esses filtros. Tenta limpar a busca ou voltar pra{" "}
+            <strong>Todos</strong>.
           </p>
+          {(search || tab !== "all") && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setTab("all");
+              }}
+              className="rdv-btn rdv-btn-ghost"
+              style={{ padding: "8px 14px", fontSize: 11 }}
+            >
+              Limpar filtros
+            </button>
+          )}
         </div>
       )}
 
@@ -247,11 +281,12 @@ function SubTabs({
             key={t.id}
             type="button"
             onClick={() => onChange(t.id)}
+            aria-pressed={active}
             style={{
               padding: "8px 12px",
               border: "1.5px solid var(--color-rdv-ink)",
-              background: active ? "var(--color-rdv-ink)" : "white",
-              color: active ? "white" : "var(--color-rdv-ink)",
+              background: active ? "var(--color-rdv-ink)" : "var(--color-rdv-card)",
+              color: active ? "var(--color-rdv-paper)" : "var(--color-rdv-ink)",
               cursor: "pointer",
               fontFamily: "var(--font-geist-mono)",
               fontSize: 10.5,
@@ -262,6 +297,13 @@ function SubTabs({
               alignItems: "center",
               gap: 6,
               boxShadow: active ? "2px 2px 0 0 var(--color-rdv-rec)" : "none",
+              transition: "transform 120ms, box-shadow 120ms, background 120ms",
+            }}
+            onMouseEnter={(e) => {
+              if (!active) e.currentTarget.style.boxShadow = "2px 2px 0 0 var(--color-rdv-ink)";
+            }}
+            onMouseLeave={(e) => {
+              if (!active) e.currentTarget.style.boxShadow = "none";
             }}
           >
             {t.icon}
@@ -523,7 +565,7 @@ function PostPlaceholder({
           height: 44,
           borderRadius: "50%",
           background: "var(--color-rdv-ink)",
-          color: "white",
+          color: "var(--color-rdv-paper)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",

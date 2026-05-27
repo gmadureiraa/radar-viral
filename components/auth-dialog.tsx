@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { getAuthClient, getJwtToken } from "@/lib/auth-client";
@@ -51,6 +51,20 @@ export function AuthDialog({ onClose, onSuccess, title, subtitle }: AuthDialogPr
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+
+  // ESC fecha + trava scroll do body enquanto aberto.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
 
   async function handleGoogle() {
     setGoogleLoading(true);
@@ -129,6 +143,9 @@ export function AuthDialog({ onClose, onSuccess, title, subtitle }: AuthDialogPr
       }}
     >
       <form
+        role="dialog"
+        aria-modal="true"
+        aria-label={mode === "signin" ? "Entrar" : "Criar conta"}
         onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
         style={{
@@ -153,6 +170,15 @@ export function AuthDialog({ onClose, onSuccess, title, subtitle }: AuthDialogPr
             border: "1.5px solid var(--color-rdv-line)",
             padding: 6,
             cursor: "pointer",
+            transition: "border-color 0.12s, transform 0.12s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = "var(--color-rdv-rec)";
+            e.currentTarget.style.transform = "scale(1.05)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = "var(--color-rdv-line)";
+            e.currentTarget.style.transform = "scale(1)";
           }}
         >
           <X size={14} />
@@ -198,6 +224,7 @@ export function AuthDialog({ onClose, onSuccess, title, subtitle }: AuthDialogPr
             gap: 10,
             marginBottom: 14,
             background: "white",
+            color: "#141414",
             textTransform: "none",
             letterSpacing: "0",
             fontFamily: "var(--font-jakarta)",

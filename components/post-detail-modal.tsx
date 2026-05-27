@@ -67,12 +67,20 @@ export function PostDetailModal({ detail, onClose }: Props) {
   const [saved, setSaved] = useState(false);
   const [savingNow, setSavingNow] = useState(false);
 
-  // ESC fecha
+  // ESC fecha + trava o scroll do body enquanto o modal está aberto
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
     }
-    if (detail) window.addEventListener("keydown", onKey);
+    if (detail) {
+      window.addEventListener("keydown", onKey);
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        window.removeEventListener("keydown", onKey);
+        document.body.style.overflow = prevOverflow;
+      };
+    }
     return () => window.removeEventListener("keydown", onKey);
   }, [detail, onClose]);
 
@@ -187,6 +195,9 @@ export function PostDetailModal({ detail, onClose }: Props) {
       }}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={detail.title}
         onClick={(e) => e.stopPropagation()}
         style={{
           width: "100%",
@@ -208,11 +219,20 @@ export function PostDetailModal({ detail, onClose }: Props) {
             position: "absolute",
             top: 14,
             right: 14,
-            background: "white",
+            background: "var(--color-rdv-card)",
             border: "1.5px solid var(--color-rdv-line)",
             padding: 6,
             cursor: "pointer",
             zIndex: 1,
+            transition: "border-color 0.12s, transform 0.12s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = "var(--color-rdv-rec)";
+            e.currentTarget.style.transform = "scale(1.05)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = "var(--color-rdv-line)";
+            e.currentTarget.style.transform = "scale(1)";
           }}
         >
           <X size={14} />

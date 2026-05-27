@@ -55,7 +55,9 @@ export function SourceActionsMenu({
           e.stopPropagation();
           setOpen((v) => !v);
         }}
-        aria-label="Ações"
+        aria-label="Ações da fonte"
+        aria-haspopup="menu"
+        aria-expanded={open}
         style={{
           width: 28,
           height: 28,
@@ -66,12 +68,24 @@ export function SourceActionsMenu({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
+          transition: "background 0.1s, border-color 0.1s",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = "var(--color-rdv-paper)";
+          e.currentTarget.style.borderColor = "var(--color-rdv-ink)";
+        }}
+        onMouseLeave={(e) => {
+          if (!open) {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.borderColor = "var(--color-rdv-line)";
+          }
         }}
       >
         <MoreVertical size={14} />
       </button>
       {open && (
         <div
+          role="menu"
           style={{
             position: "absolute",
             top: "calc(100% + 4px)",
@@ -135,6 +149,7 @@ function MenuItem({
   return (
     <button
       type="button"
+      role="menuitem"
       onClick={onClick}
       style={{
         width: "100%",

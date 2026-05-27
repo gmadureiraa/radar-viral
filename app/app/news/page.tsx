@@ -7,10 +7,11 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Newspaper, RefreshCw, Search, ExternalLink, Loader2, Clock } from "lucide-react";
+import { Newspaper, RefreshCw, Search, ExternalLink, Clock } from "lucide-react";
 import { useActiveNiche } from "@/lib/niche-context";
 import { getJwtToken } from "@/lib/auth-client";
 import { PostDetailModal, type PostDetail } from "@/components/post-detail-modal";
+import { SkeletonCard } from "@/components/skeleton-card";
 import { imgProxy } from "@/lib/img-proxy";
 import type { NewsArticleRow } from "@/app/api/data/news/route";
 
@@ -122,11 +123,12 @@ function NewsInner() {
                 key={p}
                 type="button"
                 onClick={() => setPeriod(p)}
+                aria-pressed={active}
                 style={{
                   padding: "8px 12px",
                   border: "1.5px solid var(--color-rdv-ink)",
-                  background: active ? "var(--color-rdv-ink)" : "white",
-                  color: active ? "white" : "var(--color-rdv-ink)",
+                  background: active ? "var(--color-rdv-ink)" : "var(--color-rdv-card)",
+                  color: active ? "var(--color-rdv-paper)" : "var(--color-rdv-ink)",
                   cursor: "pointer",
                   fontFamily: "var(--font-geist-mono)",
                   fontSize: 10.5,
@@ -134,6 +136,13 @@ function NewsInner() {
                   letterSpacing: "0.14em",
                   textTransform: "uppercase",
                   boxShadow: active ? "2px 2px 0 0 var(--color-rdv-rec)" : "none",
+                  transition: "box-shadow 120ms, background 120ms",
+                }}
+                onMouseEnter={(e) => {
+                  if (!active) e.currentTarget.style.boxShadow = "2px 2px 0 0 var(--color-rdv-ink)";
+                }}
+                onMouseLeave={(e) => {
+                  if (!active) e.currentTarget.style.boxShadow = "none";
                 }}
               >
                 <Clock size={10} style={{ display: "inline", marginRight: 4 }} />
@@ -147,7 +156,7 @@ function NewsInner() {
             display: "flex",
             alignItems: "center",
             border: "1.5px solid var(--color-rdv-ink)",
-            background: "white",
+            background: "var(--color-rdv-card)",
             flex: "1 1 240px",
             maxWidth: 360,
           }}
@@ -191,11 +200,12 @@ function NewsInner() {
             <button
               key={name}
               type="button"
+              aria-pressed={search === name}
               onClick={() => setSearch(search === name ? "" : name)}
               style={{
                 padding: "4px 10px",
                 background: search === name ? "var(--color-rdv-rec)" : "var(--color-rdv-cream)",
-                color: search === name ? "white" : "var(--color-rdv-ink)",
+                color: search === name ? "var(--color-rdv-cream)" : "var(--color-rdv-ink)",
                 border: "1px solid var(--color-rdv-ink)",
                 fontFamily: "var(--font-geist-mono)",
                 fontSize: 10,
@@ -217,8 +227,10 @@ function NewsInner() {
       )}
 
       {loading && articles.length === 0 && (
-        <div style={{ padding: 60, display: "flex", justifyContent: "center" }}>
-          <Loader2 size={24} className="rdv-spin" />
+        <div role="status" aria-label="Carregando notícias" style={{ display: "grid", gap: 12 }}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonCard key={i} media={false} />
+          ))}
         </div>
       )}
 
@@ -226,6 +238,28 @@ function NewsInner() {
         <div className="rdv-card" style={{ padding: 32, textAlign: "center" }}>
           <Newspaper size={28} style={{ margin: "0 auto 12px", color: "var(--color-rdv-muted)" }} />
           <p style={{ fontSize: 14, color: "var(--color-rdv-muted)" }}>Nenhuma notícia no período selecionado.</p>
+        </div>
+      )}
+
+      {!loading && articles.length > 0 && filtered.length === 0 && (
+        <div
+          className="rdv-card"
+          style={{ padding: 28, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}
+        >
+          <Search size={28} style={{ color: "var(--color-rdv-muted)" }} />
+          <p style={{ fontSize: 13.5, color: "var(--color-rdv-muted)", lineHeight: 1.5, maxWidth: 420 }}>
+            Nenhuma notícia bate com a busca atual. Tenta limpar o filtro.
+          </p>
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="rdv-btn rdv-btn-ghost"
+              style={{ padding: "8px 14px", fontSize: 11 }}
+            >
+              Limpar busca
+            </button>
+          )}
         </div>
       )}
 

@@ -1,25 +1,41 @@
 import type { Metadata, Viewport } from "next";
-import { Plus_Jakarta_Sans, Instrument_Serif, Geist_Mono } from "next/font/google";
+import { Inter, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { Toaster } from "sonner";
 import { MetaPixel } from "@/components/MetaPixel";
 import { GoogleSignupSync } from "@/components/google-signup-sync";
 import { ReferralCapture } from "@/components/ReferralCapture";
+import ThemeScript from "./theme-script";
 import "./globals.css";
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 
-const sans = Plus_Jakarta_Sans({
+// Tipografia da marca Kaleidos (padrão herdado do biblioteca-viral):
+//   Inter    → corpo/UI (sans)
+//   Atelier  → títulos/display (serif da marca, local)
+//   Gridlite → accent/destaque pontual (local)
+//   Geist Mono → mono (eyebrows, botões brutalistas)
+// Vars mantidas (--font-jakarta/--font-instrument) pra não tocar em
+// estilos inline espalhados; agora apontam pras fontes Kaleidos.
+const sans = Inter({
   subsets: ["latin"],
   variable: "--font-jakarta",
   display: "swap",
 });
 
-const display = Instrument_Serif({
-  subsets: ["latin"],
-  weight: "400",
+const display = localFont({
+  src: "../public/fonts/Atelier.ttf",
   variable: "--font-instrument",
   display: "swap",
+  weight: "400",
+});
+
+const gridlite = localFont({
+  src: "../public/fonts/Gridlite.otf",
+  variable: "--font-gridlite",
+  display: "swap",
+  weight: "400",
 });
 
 const mono = Geist_Mono({
@@ -60,7 +76,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#F5F1E8",
+  themeColor: "#FAFAFA",
   width: "device-width",
   initialScale: 1,
 };
@@ -69,7 +85,14 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt-BR" className={`${sans.variable} ${display.variable} ${mono.variable}`}>
+    <html
+      lang="pt-BR"
+      className={`${sans.variable} ${display.variable} ${gridlite.variable} ${mono.variable}`}
+    >
+      <head>
+        {/* Anti-FOUC: seta data-theme="dark" no <html> antes do paint. */}
+        <ThemeScript />
+      </head>
       <body
         style={{
           background: "var(--color-rdv-paper)",

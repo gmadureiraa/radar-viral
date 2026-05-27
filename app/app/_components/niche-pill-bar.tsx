@@ -43,7 +43,7 @@ export function NichePillBar() {
               gap: 6,
               padding: "7px 12px",
               background: isActive ? "var(--color-rdv-ink)" : "transparent",
-              color: isActive ? "white" : "var(--color-rdv-ink)",
+              color: isActive ? "var(--color-rdv-paper)" : "var(--color-rdv-ink)",
               border: "none",
               cursor: "pointer",
               fontFamily: "var(--font-geist-mono)",
@@ -52,6 +52,12 @@ export function NichePillBar() {
               letterSpacing: "0.12em",
               textTransform: "uppercase",
               transition: "background 0.12s, color 0.12s",
+            }}
+            onMouseEnter={(e) => {
+              if (!isActive) e.currentTarget.style.background = "var(--color-rdv-soft)";
+            }}
+            onMouseLeave={(e) => {
+              if (!isActive) e.currentTarget.style.background = "transparent";
             }}
           >
             <span

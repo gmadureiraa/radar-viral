@@ -16,7 +16,6 @@ import {
   Play,
   RefreshCw,
   Search,
-  Loader2,
   ExternalLink,
   Music2,
 } from "lucide-react";
@@ -24,6 +23,7 @@ import Link from "next/link";
 import { useActiveNiche } from "@/lib/niche-context";
 import { getJwtToken } from "@/lib/auth-client";
 import { imgProxy } from "@/lib/img-proxy";
+import { SkeletonCard } from "@/components/skeleton-card";
 import type { TikTokPostRow } from "@/app/api/data/tiktok/route";
 
 type SortBy = "recent" | "plays" | "engagement";
@@ -127,7 +127,7 @@ export default function TikTokPage() {
           style={{
             padding: "8px 12px",
             border: "1.5px solid var(--color-rdv-ink)",
-            background: "white",
+            background: "var(--color-rdv-card)",
             fontFamily: "var(--font-geist-mono)",
             fontSize: 11,
             fontWeight: 700,
@@ -146,7 +146,7 @@ export default function TikTokPage() {
             alignItems: "center",
             gap: 0,
             border: "1.5px solid var(--color-rdv-ink)",
-            background: "white",
+            background: "var(--color-rdv-card)",
             flex: "1 1 240px",
             maxWidth: 320,
           }}
@@ -180,8 +180,14 @@ export default function TikTokPage() {
       )}
 
       {loading && posts.length === 0 && (
-        <div style={{ padding: 60, display: "flex", justifyContent: "center" }}>
-          <Loader2 size={24} className="rdv-spin" />
+        <div
+          role="status"
+          aria-label="Carregando vídeos do TikTok"
+          style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}
+        >
+          {Array.from({ length: 8 }).map((_, i) => (
+            <SkeletonCard key={i} aspectRatio="9/16" />
+          ))}
         </div>
       )}
 

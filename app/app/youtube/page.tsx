@@ -8,7 +8,6 @@ import { useEffect, useState } from "react";
 import {
   Youtube,
   RefreshCw,
-  Loader2,
   ExternalLink,
   Settings,
 } from "lucide-react";
@@ -16,6 +15,7 @@ import Link from "next/link";
 import { useActiveNiche } from "@/lib/niche-context";
 import { getJwtToken } from "@/lib/auth-client";
 import { PostDetailModal, type PostDetail } from "@/components/post-detail-modal";
+import { SkeletonCard } from "@/components/skeleton-card";
 import type { VideoRow } from "@/app/api/data/videos/route";
 
 export default function YouTubePage() {
@@ -96,11 +96,12 @@ export default function YouTubePage() {
               key={d}
               type="button"
               onClick={() => setDays(d)}
+              aria-pressed={active}
               style={{
                 padding: "8px 12px",
                 border: "1.5px solid var(--color-rdv-ink)",
-                background: active ? "var(--color-rdv-ink)" : "white",
-                color: active ? "white" : "var(--color-rdv-ink)",
+                background: active ? "var(--color-rdv-ink)" : "var(--color-rdv-card)",
+                color: active ? "var(--color-rdv-paper)" : "var(--color-rdv-ink)",
                 cursor: "pointer",
                 fontFamily: "var(--font-geist-mono)",
                 fontSize: 10.5,
@@ -108,6 +109,13 @@ export default function YouTubePage() {
                 letterSpacing: "0.14em",
                 textTransform: "uppercase",
                 boxShadow: active ? "2px 2px 0 0 var(--color-rdv-rec)" : "none",
+                transition: "box-shadow 120ms, background 120ms",
+              }}
+              onMouseEnter={(e) => {
+                if (!active) e.currentTarget.style.boxShadow = "2px 2px 0 0 var(--color-rdv-ink)";
+              }}
+              onMouseLeave={(e) => {
+                if (!active) e.currentTarget.style.boxShadow = "none";
               }}
             >
               Últimos {d}d
@@ -123,8 +131,14 @@ export default function YouTubePage() {
       )}
 
       {loading && videos.length === 0 && (
-        <div style={{ padding: 60, display: "flex", justifyContent: "center" }}>
-          <Loader2 size={24} className="rdv-spin" />
+        <div
+          role="status"
+          aria-label="Carregando vídeos"
+          style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}
+        >
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
         </div>
       )}
 

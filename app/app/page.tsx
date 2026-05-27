@@ -589,7 +589,7 @@ function TopicCard({
           width: 36,
           height: 36,
           background: rank === 1 ? "var(--color-rdv-rec)" : "rgba(255, 61, 46, 0.18)",
-          color: rank === 1 ? "white" : "var(--color-rdv-ink)",
+          color: rank === 1 ? "var(--color-rdv-cream)" : "var(--color-rdv-ink)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -1161,7 +1161,7 @@ function DayResumeCard({
                   fontSize: 9,
                   padding: "2px 6px",
                   background: "var(--color-rdv-rec)",
-                  color: "white",
+                  color: "var(--color-rdv-cream)",
                   letterSpacing: "0.1em",
                 }}
               >

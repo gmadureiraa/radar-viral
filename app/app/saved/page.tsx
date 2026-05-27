@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { BookmarkCheck, RefreshCw, Loader2, ExternalLink, Trash2 } from "lucide-react";
+import { BookmarkCheck, RefreshCw, ExternalLink, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { getJwtToken } from "@/lib/auth-client";
 import { imgProxy } from "@/lib/img-proxy";
@@ -115,11 +115,12 @@ export default function SavedPage() {
               key={p}
               type="button"
               onClick={() => setFilter(p)}
+              aria-pressed={active}
               style={{
                 padding: "8px 12px",
                 border: "1.5px solid var(--color-rdv-ink)",
-                background: active ? "var(--color-rdv-ink)" : "white",
-                color: active ? "white" : "var(--color-rdv-ink)",
+                background: active ? "var(--color-rdv-ink)" : "var(--color-rdv-card)",
+                color: active ? "var(--color-rdv-paper)" : "var(--color-rdv-ink)",
                 cursor: "pointer",
                 fontFamily: "var(--font-geist-mono)",
                 fontSize: 10.5,
@@ -127,6 +128,13 @@ export default function SavedPage() {
                 letterSpacing: "0.14em",
                 textTransform: "uppercase",
                 boxShadow: active ? "2px 2px 0 0 var(--color-rdv-rec)" : "none",
+                transition: "box-shadow 120ms, background 120ms",
+              }}
+              onMouseEnter={(e) => {
+                if (!active) e.currentTarget.style.boxShadow = "2px 2px 0 0 var(--color-rdv-ink)";
+              }}
+              onMouseLeave={(e) => {
+                if (!active) e.currentTarget.style.boxShadow = "none";
               }}
             >
               {label} <span style={{ opacity: 0.7, fontWeight: 500 }}>· {count}</span>
@@ -136,8 +144,42 @@ export default function SavedPage() {
       </div>
 
       {loading && items.length === 0 && (
-        <div style={{ padding: 60, display: "flex", justifyContent: "center" }}>
-          <Loader2 size={24} className="rdv-spin" />
+        <div role="status" aria-label="Carregando salvos" style={{ display: "grid", gap: 10 }}>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="rdv-card" style={{ padding: 14, display: "flex", gap: 14, alignItems: "center" }}>
+              <div className="rdv-saved-skeleton" style={{ width: 64, height: 64, flexShrink: 0 }} />
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                <div className="rdv-saved-skeleton" style={{ height: 9, width: "30%" }} />
+                <div className="rdv-saved-skeleton" style={{ height: 13, width: "85%" }} />
+                <div className="rdv-saved-skeleton" style={{ height: 11, width: "55%" }} />
+              </div>
+            </div>
+          ))}
+          <style jsx>{`
+            .rdv-saved-skeleton {
+              background: linear-gradient(
+                90deg,
+                var(--color-rdv-soft) 0%,
+                var(--color-rdv-line) 50%,
+                var(--color-rdv-soft) 100%
+              );
+              background-size: 200% 100%;
+              animation: rdv-saved-slide 1.3s ease-in-out infinite;
+            }
+            @keyframes rdv-saved-slide {
+              0% {
+                background-position: 200% 0;
+              }
+              100% {
+                background-position: -200% 0;
+              }
+            }
+            @media (prefers-reduced-motion: reduce) {
+              .rdv-saved-skeleton {
+                animation: none;
+              }
+            }
+          `}</style>
         </div>
       )}
 

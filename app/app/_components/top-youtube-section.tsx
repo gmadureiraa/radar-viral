@@ -348,7 +348,7 @@ function carouselArrowStyle(side: "left" | "right"): React.CSSProperties {
     height: 36,
     borderRadius: "50%",
     background: "var(--color-rdv-ink)",
-    color: "white",
+    color: "var(--color-rdv-paper)",
     border: "1.5px solid var(--color-rdv-ink)",
     cursor: "pointer",
     fontSize: 22,

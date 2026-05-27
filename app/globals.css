@@ -1,22 +1,38 @@
 @import "tailwindcss";
 
+/* ═══════════════════════════════════════════════════════════════════
+   RADAR VIRAL — Design System (marca Kaleidos, padrão biblioteca-viral)
+   ───────────────────────────────────────────────────────────────────
+   - LIGHT: branco Kaleidos #FAFAFA + cards brancos + accent ROSA #D262B2.
+   - DARK : preto puro #000 + cards elevados + accent VERDE #7CF067.
+   Fontes da marca: Inter (corpo) + Atelier (títulos) + Gridlite (accent).
+   Coral REC #FF3D2E mantido como acento brutalista pontual (combo viral).
+
+   Os nomes de token (--color-rdv-*) foram preservados — os componentes
+   referenciam via var() e herdam a nova paleta automaticamente.
+   ═══════════════════════════════════════════════════════════════════ */
+
 @theme {
-  --color-rdv-paper: #F5F1E8;
-  --color-rdv-cream: #FBF7EE;
-  --color-rdv-ink: #0A0908;
+  /* LIGHT — Cores oficiais brandbook: Rosa #D262B2, Verde #7CF067, Preto #000, Branco #FAFAFA. */
+  --color-rdv-paper: #FAFAFA;     /* Branco Kaleidos (page bg) */
+  --color-rdv-cream: #F1ECF0;     /* surface secundária / ghost / fg em botão accent */
+  --color-rdv-card: #FFFFFF;      /* cards / inputs puro branco */
+  --color-rdv-ink: #141414;       /* texto principal (quase preto) */
   --color-rdv-coal: #1A1816;
-  --color-rdv-rec: #FF3D2E;
-  --color-rdv-rec-hot: #FF5947;
-  --color-rdv-muted: #6B6660;
-  --color-rdv-line: #DDD7CA;
-  --color-rdv-soft: #EAE3D2;
+  --color-rdv-rec: #D262B2;       /* ACCENT primário — Rosa Kaleidos */
+  --color-rdv-rec-hot: #C24FA0;   /* hover do accent */
+  --color-rdv-muted: #5C5858;     /* texto muted (AA sobre paper) */
+  --color-rdv-line: #E8E1E6;      /* bordas (pink-tint) */
+  --color-rdv-soft: #F1EAEF;      /* hover surface */
   --color-rdv-amber: #F0B33C;
   --color-rdv-green: #7CB342;
   --color-rdv-blue: #4A90E2;
+  --color-rdv-coral: #FF3D2E;     /* REC coral — acento brutalista pontual */
 
-  --font-sans: "Plus Jakarta Sans", -apple-system, system-ui, sans-serif;
-  --font-display: "Instrument Serif", "Playfair Display", Georgia, serif;
-  --font-mono: "Geist Mono", "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+  --font-sans: var(--font-jakarta), "Inter", -apple-system, system-ui, sans-serif;
+  --font-display: var(--font-instrument), "Playfair Display", Georgia, serif;
+  --font-accent: var(--font-gridlite), var(--font-jakarta), sans-serif;
+  --font-mono: var(--font-geist-mono), "Geist Mono", "JetBrains Mono", "SF Mono", ui-monospace, monospace;
 }
 
 @layer base {
@@ -24,11 +40,35 @@
     color-scheme: light;
   }
 
+  /* ───────────────────────────────────────────────────────────
+     Dark mode — ativado via [data-theme="dark"] no <html>.
+     Setado por: app/theme-script.tsx (anti-FOUC, antes do paint)
+     e components/ThemeToggle.tsx (click). Persistência: localStorage
+     'rdv-theme', fallback system preference. Helpers herdam via var().
+     Preto puro + escala de elevação + accent VERDE Kaleidos #7CF067.
+     ─────────────────────────────────────────────────────────── */
+  [data-theme="dark"] {
+    color-scheme: dark;
+    --color-rdv-paper: #000000;    /* Preto Kaleidos */
+    --color-rdv-cream: #121212;    /* sidebar/surface escura + fg em botão accent */
+    --color-rdv-card: #18181A;     /* cards/inputs — elevação sobre o preto */
+    --color-rdv-ink: #FAFAFA;      /* Branco Kaleidos (texto) */
+    --color-rdv-coal: #FAFAFA;
+    --color-rdv-rec: #7CF067;      /* ACCENT primário — Verde Kaleidos */
+    --color-rdv-rec-hot: #93F584;
+    --color-rdv-muted: #B0AFAC;    /* texto secundário (+contraste sobre preto) */
+    --color-rdv-line: #393E37;     /* bordas/divisores (green-tint) */
+    --color-rdv-soft: #262628;     /* hover surface */
+    --color-rdv-amber: #E6B84D;
+    --color-rdv-coral: #FF6B5C;
+  }
+
   html, body {
     background: var(--color-rdv-paper);
     color: var(--color-rdv-ink);
     font-family: var(--font-sans);
     font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
   }
 
   *::selection {
@@ -117,24 +157,24 @@
 
   .rdv-btn-rec {
     background: var(--color-rdv-rec);
-    color: white;
+    color: var(--color-rdv-cream);
   }
   .rdv-btn-rec:hover:not(:disabled) {
     background: var(--color-rdv-rec-hot);
   }
 
   .rdv-btn-ghost {
-    background: var(--color-rdv-cream);
+    background: var(--color-rdv-card);
   }
 
   /* ── Cards ────────────────────────────────────────────────────── */
   .rdv-card {
-    background: var(--color-rdv-cream);
+    background: var(--color-rdv-card);
     border: 1.5px solid var(--color-rdv-ink);
     box-shadow: 4px 4px 0 0 var(--color-rdv-ink);
   }
   .rdv-card-rec {
-    background: var(--color-rdv-cream);
+    background: var(--color-rdv-card);
     border: 1.5px solid var(--color-rdv-rec);
     box-shadow: 6px 6px 0 0 var(--color-rdv-rec);
   }
@@ -143,7 +183,8 @@
   .rdv-input {
     width: 100%;
     border: 1.5px solid var(--color-rdv-ink);
-    background: white;
+    background: var(--color-rdv-card);
+    color: var(--color-rdv-ink);
     padding: 12px 14px;
     font-family: var(--font-sans);
     font-size: 14px;
@@ -174,5 +215,40 @@
       grid-template-columns: 1fr;
       gap: 28px;
     }
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   View Transition — troca de tema com revelação circular a partir
+   do botão (mesma animação de madureira.xyz/links + biblioteca-viral).
+   Acionada pelo ThemeToggle via startViewTransition + .vt-theme-toggling.
+   ───────────────────────────────────────────────────────────── */
+@supports (view-transition-name: a) {
+  html.vt-theme-toggling::view-transition-old(root),
+  html.vt-theme-toggling::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+  }
+  html.vt-theme-toggling::view-transition-old(root) {
+    z-index: 1;
+  }
+  html.vt-theme-toggling::view-transition-new(root) {
+    z-index: 2;
+    animation: theme-circle-reveal 560ms cubic-bezier(0.65, 0, 0.35, 1);
+  }
+}
+
+@keyframes theme-circle-reveal {
+  from {
+    clip-path: circle(0% at var(--vt-x, 50%) var(--vt-y, 50%));
+  }
+  to {
+    clip-path: circle(140% at var(--vt-x, 50%) var(--vt-y, 50%));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.vt-theme-toggling::view-transition-new(root) {
+    animation: none;
   }
 }

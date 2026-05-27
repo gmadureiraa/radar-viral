@@ -440,7 +440,7 @@ function PlanBadge({ plan, used, cap, reached }: { plan: string; used: number; c
         padding: "8px 12px",
         border: "1.5px solid var(--color-rdv-ink)",
         background: reached ? "var(--color-rdv-rec)" : "var(--color-rdv-paper)",
-        color: reached ? "white" : "var(--color-rdv-ink)",
+        color: reached ? "var(--color-rdv-cream)" : "var(--color-rdv-ink)",
         fontSize: 11,
         fontWeight: 700,
         letterSpacing: "0.12em",
@@ -481,11 +481,12 @@ function PlatformTabsBar({
             key={p}
             type="button"
             onClick={() => onChange(p)}
+            aria-pressed={isActive}
             style={{
               padding: "7px 11px",
               border: "1.5px solid var(--color-rdv-ink)",
-              background: isActive ? "var(--color-rdv-ink)" : "white",
-              color: isActive ? "white" : "var(--color-rdv-ink)",
+              background: isActive ? "var(--color-rdv-ink)" : "var(--color-rdv-card)",
+              color: isActive ? "var(--color-rdv-paper)" : "var(--color-rdv-ink)",
               cursor: "pointer",
               fontFamily: "var(--font-geist-mono)",
               fontSize: 10.5,
@@ -497,6 +498,13 @@ function PlatformTabsBar({
               alignItems: "center",
               gap: 5,
               whiteSpace: "nowrap",
+              transition: "box-shadow 120ms, background 120ms",
+            }}
+            onMouseEnter={(e) => {
+              if (!isActive) e.currentTarget.style.boxShadow = "2px 2px 0 0 var(--color-rdv-ink)";
+            }}
+            onMouseLeave={(e) => {
+              if (!isActive) e.currentTarget.style.boxShadow = "none";
             }}
           >
             <Icon size={11} /> {platformLabel(p)}
@@ -567,7 +575,7 @@ function MyCard({
         position: "relative",
       }}
     >
-      <div style={{ flexShrink: 0, width: 40, height: 40, borderRadius: "50%", overflow: "hidden", border: "1.5px solid var(--color-rdv-ink)", background: showImage ? "transparent" : "var(--color-rdv-ink)", color: "white", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ flexShrink: 0, width: 40, height: 40, borderRadius: "50%", overflow: "hidden", border: "1.5px solid var(--color-rdv-ink)", background: showImage ? "transparent" : "var(--color-rdv-ink)", color: "var(--color-rdv-paper)", display: "flex", alignItems: "center", justifyContent: "center" }}>
         {showImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -592,7 +600,7 @@ function MyCard({
               fontSize: 8.5,
               padding: "2px 5px",
               background: "var(--color-rdv-rec)",
-              color: "white",
+              color: "var(--color-rdv-cream)",
               fontWeight: 700,
               letterSpacing: "0.1em",
               textTransform: "uppercase",
@@ -934,7 +942,7 @@ const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "10px 12px",
   border: "1.5px solid var(--color-rdv-ink)",
-  background: "white",
+  background: "var(--color-rdv-card)",
   fontSize: 13,
   fontFamily: "inherit",
   outline: "none",

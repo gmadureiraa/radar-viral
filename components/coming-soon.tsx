@@ -47,7 +47,7 @@ export function ComingSoon({ title, description, v1Path }: ComingSoonProps) {
             width: 56,
             height: 56,
             background: "var(--color-rdv-rec)",
-            color: "white",
+            color: "var(--color-rdv-cream)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",

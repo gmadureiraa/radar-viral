@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -26,6 +26,7 @@ import {
 } from "@/lib/auth-client";
 import { isAdminEmail } from "@/lib/admin-emails";
 import { NicheProvider, useActiveNiche } from "@/lib/niche-context";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface NavItem {
   href: string;
@@ -108,6 +109,8 @@ function AppShell({ children }: { children: React.ReactNode }) {
   if (session.isPending) {
     return (
       <div
+        role="status"
+        aria-label="Carregando"
         style={{
           minHeight: "100vh",
           display: "flex",
@@ -116,8 +119,8 @@ function AppShell({ children }: { children: React.ReactNode }) {
           background: "var(--color-rdv-paper)",
         }}
       >
-        <div className="rdv-mono" style={{ fontSize: 11, letterSpacing: "0.16em", color: "var(--color-rdv-muted)" }}>
-          CARREGANDO…
+        <div className="rdv-eyebrow">
+          <span className="rdv-rec-dot" /> CARREGANDO…
         </div>
       </div>
     );
@@ -300,13 +303,14 @@ function SidebarContent({
         key={href}
         href={href}
         onClick={onNavigate}
+        aria-current={active ? "page" : undefined}
         style={{
           display: "flex",
           alignItems: "center",
           gap: 10,
           padding: "9px 10px",
           background: active ? "var(--color-rdv-rec)" : "transparent",
-          color: active ? "white" : "rgba(245,241,232,0.72)",
+          color: active ? "var(--color-rdv-cream)" : "color-mix(in srgb, var(--color-rdv-paper) 72%, transparent)",
           fontFamily: "var(--font-geist-mono)",
           fontSize: 10.5,
           letterSpacing: "0.12em",
@@ -315,6 +319,18 @@ function SidebarContent({
           textDecoration: "none",
           boxShadow: active ? "2px 2px 0 0 rgba(0,0,0,0.3)" : "none",
           transition: "background 0.12s, color 0.12s",
+        }}
+        onMouseEnter={(e) => {
+          if (!active) {
+            e.currentTarget.style.background = "color-mix(in srgb, var(--color-rdv-paper) 8%, transparent)";
+            e.currentTarget.style.color = "var(--color-rdv-paper)";
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!active) {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.color = "color-mix(in srgb, var(--color-rdv-paper) 72%, transparent)";
+          }
         }}
       >
         <Icon size={15} strokeWidth={1.8} style={{ flexShrink: 0 }} />
@@ -327,7 +343,7 @@ function SidebarContent({
               letterSpacing: "0.08em",
               padding: "1px 6px",
               background: active ? "rgba(0,0,0,0.18)" : "var(--color-rdv-rec)",
-              color: "white",
+              color: "var(--color-rdv-cream)",
             }}
           >
             {badge}
@@ -354,7 +370,7 @@ function SidebarContent({
           justifyContent: "space-between",
           paddingBottom: 18,
           marginBottom: 14,
-          borderBottom: "1px solid rgba(245,241,232,0.12)",
+          borderBottom: "1px solid color-mix(in srgb, var(--color-rdv-paper) 12%, transparent)",
         }}
       >
         <Link
@@ -381,16 +397,19 @@ function SidebarContent({
             Radar <em>Viral</em>
           </span>
         </Link>
-        {showCloseButton && (
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Fechar menu"
-            style={{ background: "transparent", border: "none", cursor: "pointer", color: "rgba(245,241,232,0.7)" }}
-          >
-            <X size={18} />
-          </button>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <ThemeToggle />
+          {showCloseButton && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Fechar menu"
+              style={{ background: "transparent", border: "none", cursor: "pointer", color: "color-mix(in srgb, var(--color-rdv-paper) 70%, transparent)" }}
+            >
+              <X size={18} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Niche switcher */}
@@ -403,7 +422,7 @@ function SidebarContent({
           fontSize: 9,
           letterSpacing: "0.22em",
           textTransform: "uppercase",
-          color: "rgba(245,241,232,0.4)",
+          color: "color-mix(in srgb, var(--color-rdv-paper) 55%, transparent)",
           fontWeight: 700,
           marginTop: 14,
         }}
@@ -428,9 +447,9 @@ function SidebarContent({
           fontSize: 9,
           letterSpacing: "0.22em",
           textTransform: "uppercase",
-          color: "rgba(245,241,232,0.4)",
+          color: "color-mix(in srgb, var(--color-rdv-paper) 55%, transparent)",
           fontWeight: 700,
-          borderTop: "1px solid rgba(245,241,232,0.12)",
+          borderTop: "1px solid color-mix(in srgb, var(--color-rdv-paper) 12%, transparent)",
           marginTop: 12,
           paddingTop: 14,
         }}
@@ -444,7 +463,7 @@ function SidebarContent({
       <div
         style={{
           padding: "12px 12px",
-          border: "1px solid rgba(245,241,232,0.18)",
+          border: "1px solid color-mix(in srgb, var(--color-rdv-paper) 18%, transparent)",
           marginBottom: 8,
         }}
       >
@@ -454,7 +473,7 @@ function SidebarContent({
             fontSize: 8.5,
             letterSpacing: "0.22em",
             textTransform: "uppercase",
-            color: "rgba(245,241,232,0.4)",
+            color: "color-mix(in srgb, var(--color-rdv-paper) 55%, transparent)",
             fontWeight: 700,
             marginBottom: 4,
           }}
@@ -477,7 +496,7 @@ function SidebarContent({
         <div
           style={{
             fontSize: 10,
-            color: "rgba(245,241,232,0.5)",
+            color: "color-mix(in srgb, var(--color-rdv-paper) 60%, transparent)",
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
@@ -497,8 +516,8 @@ function SidebarContent({
           gap: 8,
           padding: "9px 12px",
           background: "transparent",
-          color: "rgba(245,241,232,0.5)",
-          border: "1px solid rgba(245,241,232,0.14)",
+          color: "color-mix(in srgb, var(--color-rdv-paper) 60%, transparent)",
+          border: "1px solid color-mix(in srgb, var(--color-rdv-paper) 14%, transparent)",
           fontFamily: "var(--font-geist-mono)",
           fontSize: 10,
           letterSpacing: "0.16em",
@@ -518,19 +537,40 @@ function SidebarContent({
 function NicheSwitcher() {
   const { active, setActive, niches } = useActiveNiche();
   const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [open]);
+
   return (
-    <div style={{ position: "relative", marginTop: 4 }}>
+    <div ref={ref} style={{ position: "relative", marginTop: 4 }}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
+        aria-label="Trocar nicho do radar"
+        aria-haspopup="listbox"
+        aria-expanded={open}
         style={{
           width: "100%",
           display: "flex",
           alignItems: "center",
           gap: 10,
           padding: "10px 12px",
-          background: "rgba(245,241,232,0.05)",
-          border: "1px solid rgba(245,241,232,0.18)",
+          background: "color-mix(in srgb, var(--color-rdv-paper) 6%, transparent)",
+          border: "1px solid color-mix(in srgb, var(--color-rdv-paper) 18%, transparent)",
           color: "var(--color-rdv-paper)",
           cursor: "pointer",
         }}
@@ -553,7 +593,7 @@ function NicheSwitcher() {
           style={{
             fontSize: 9,
             letterSpacing: "0.16em",
-            color: "rgba(245,241,232,0.5)",
+            color: "color-mix(in srgb, var(--color-rdv-paper) 60%, transparent)",
             transform: open ? "rotate(180deg)" : "none",
             transition: "transform 0.15s",
           }}
@@ -563,13 +603,15 @@ function NicheSwitcher() {
       </button>
       {open && (
         <div
+          role="listbox"
+          aria-label="Nichos disponíveis"
           style={{
             position: "absolute",
             top: "calc(100% + 4px)",
             left: 0,
             right: 0,
             background: "var(--color-rdv-coal)",
-            border: "1px solid rgba(245,241,232,0.18)",
+            border: "1px solid color-mix(in srgb, var(--color-rdv-paper) 18%, transparent)",
             zIndex: 10,
             boxShadow: "4px 4px 0 0 rgba(255, 61, 46, 0.4)",
           }}
@@ -578,6 +620,8 @@ function NicheSwitcher() {
             <button
               key={n.id}
               type="button"
+              role="option"
+              aria-selected={n.id === active.id}
               onClick={() => {
                 setActive(n.id);
                 setOpen(false);
