@@ -76,7 +76,12 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#FAFAFA",
+  // Theme-aware: o chrome do navegador mobile (address bar) acompanha o tema.
+  // Light = branco Kaleidos #FAFAFA, dark = preto puro #000.
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#FAFAFA" },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+  ],
   width: "device-width",
   initialScale: 1,
 };

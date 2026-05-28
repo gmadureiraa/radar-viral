@@ -76,6 +76,20 @@
     color: var(--color-rdv-cream);
   }
 
+  /* ───────────────────────────────────────────────────────────
+     Foco visível global (WCAG 2.4.7). A maioria dos botões/links
+     usa estilo inline sem outline — keyboard users ficavam sem
+     indicador. Aplica ring no accent (rosa light / verde dark) só
+     em navegação por teclado (:focus-visible não dispara no clique
+     de mouse). `outline-offset` afasta do brutalist shadow.
+     ─────────────────────────────────────────────────────────── */
+  :focus-visible {
+    outline: 2.5px solid var(--color-rdv-rec);
+    outline-offset: 2px;
+  }
+  /* Em superfície escura (sidebar = --color-rdv-ink), o accent ainda
+     contrasta; mantém o mesmo ring por consistência. */
+
   *::-webkit-scrollbar { width: 10px; height: 10px; }
   *::-webkit-scrollbar-track { background: var(--color-rdv-soft); }
   *::-webkit-scrollbar-thumb {
