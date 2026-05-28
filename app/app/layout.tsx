@@ -8,6 +8,7 @@ import {
   Instagram,
   Youtube,
   Newspaper,
+  TrendingUp,
   BookmarkCheck,
   Settings as SettingsIcon,
   Shield,
@@ -53,6 +54,7 @@ const PRIMARY_NAV: NavItem[] = [
   { href: "/app/tiktok", label: "TikTok", icon: Music2, badge: "NEW" },
   { href: "/app/youtube", label: "YouTube", icon: Youtube },
   { href: "/app/news", label: "Notícias", icon: Newspaper },
+  { href: "/app/trends", label: "Tendências", icon: TrendingUp, badge: "NEW" },
   { href: "/app/saved", label: "Salvos", icon: BookmarkCheck },
 ];
 

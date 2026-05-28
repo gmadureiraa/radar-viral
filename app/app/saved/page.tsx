@@ -5,13 +5,61 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { BookmarkCheck, RefreshCw, ExternalLink, Trash2 } from "lucide-react";
+import { BookmarkCheck, RefreshCw, ExternalLink, Trash2, Download } from "lucide-react";
 import { toast } from "sonner";
 import { getJwtToken } from "@/lib/auth-client";
 import { imgProxy } from "@/lib/img-proxy";
 import type { SavedItemRow } from "@/app/api/data/saved/route";
 
 type Platform = "all" | "instagram" | "youtube" | "news" | "newsletter" | "topic";
+
+/** Dispara download de um arquivo no client (zero backend). */
+function downloadFile(filename: string, content: string, mime: string) {
+  const blob = new Blob([content], { type: `${mime};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function csvCell(v: string | null): string {
+  const s = (v ?? "").replace(/"/g, '""');
+  return `"${s}"`;
+}
+
+function exportCsv(items: SavedItemRow[]) {
+  const header = ["plataforma", "nicho", "titulo", "nota", "url", "salvo_em"];
+  const lines = items.map((i) =>
+    [i.platform, i.niche_slug, i.title, i.note, i.source_url, i.saved_at]
+      .map((c) => csvCell(c))
+      .join(","),
+  );
+  const date = new Date().toISOString().slice(0, 10);
+  downloadFile(`radar-salvos-${date}.csv`, [header.join(","), ...lines].join("\n"), "text/csv");
+}
+
+function exportMarkdown(items: SavedItemRow[]) {
+  const date = new Date().toISOString().slice(0, 10);
+  const byPlatform = items.reduce<Record<string, SavedItemRow[]>>((acc, i) => {
+    (acc[i.platform] ??= []).push(i);
+    return acc;
+  }, {});
+  const out: string[] = [`# Radar Viral — Salvos (${date})`, ""];
+  for (const [platform, rows] of Object.entries(byPlatform)) {
+    out.push(`## ${platform} (${rows.length})`, "");
+    for (const r of rows) {
+      const title = r.source_url ? `[${r.title}](${r.source_url})` : r.title;
+      out.push(`- ${title}`);
+      if (r.note) out.push(`  - ${r.note}`);
+    }
+    out.push("");
+  }
+  downloadFile(`radar-salvos-${date}.md`, out.join("\n"), "text/markdown");
+}
 
 export default function SavedPage() {
   const [items, setItems] = useState<SavedItemRow[]>([]);
@@ -86,16 +134,48 @@ export default function SavedPage() {
         >
           Tua <em>biblioteca</em>.
         </h1>
-        <button
-          type="button"
-          onClick={() => void refresh()}
-          disabled={loading}
-          className="rdv-btn rdv-btn-ghost"
-          style={{ padding: "10px 14px", fontSize: 11 }}
-        >
-          <RefreshCw size={12} className={loading ? "rdv-spin" : ""} />
-          {loading ? "Atualizando..." : "Atualizar"}
-        </button>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={() => {
+              if (filtered.length === 0) {
+                toast.error("Nada pra exportar");
+                return;
+              }
+              exportCsv(filtered);
+              toast.success(`${filtered.length} itens exportados (CSV)`);
+            }}
+            className="rdv-btn rdv-btn-ghost"
+            style={{ padding: "10px 14px", fontSize: 11 }}
+          >
+            <Download size={12} /> CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (filtered.length === 0) {
+                toast.error("Nada pra exportar");
+                return;
+              }
+              exportMarkdown(filtered);
+              toast.success(`${filtered.length} itens exportados (Markdown)`);
+            }}
+            className="rdv-btn rdv-btn-ghost"
+            style={{ padding: "10px 14px", fontSize: 11 }}
+          >
+            <Download size={12} /> Markdown
+          </button>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            disabled={loading}
+            className="rdv-btn rdv-btn-ghost"
+            style={{ padding: "10px 14px", fontSize: 11 }}
+          >
+            <RefreshCw size={12} className={loading ? "rdv-spin" : ""} />
+            {loading ? "Atualizando..." : "Atualizar"}
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
