@@ -19,3 +19,9 @@ tsconfig.tsbuildinfo
 # Local cron-test env (puxado via vercel env pull pra disparo manual)
 .env.cron-test
 .env.audit
+
+# Higgsfield brutos / staging de geração (versões otimizadas em public/generated/)
+/tmp/radar-gen/
+*-raw.png
+*-raw.mp4
+*-raw.jpg

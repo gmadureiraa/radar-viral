@@ -10,16 +10,10 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  ArrowRight,
-  Sparkles,
-  Activity,
-  Layers,
-  Zap,
-  Eye,
-} from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 import { useNeonSession } from "@/lib/auth-client";
 import { AuthDialog } from "@/components/auth-dialog";
+import { HeroLoop } from "@/components/HeroLoop";
 
 export default function Page() {
   return (
@@ -192,6 +186,10 @@ function Landing() {
           e <strong>3 ideias prontas pra postar</strong>. Todo dia, 10h.
         </p>
 
+        {/* Hero loop Kling 3.0 — ondas concêntricas pulsando, respeita
+            prefers-reduced-motion via componente. */}
+        <HeroLoop />
+
         <button
           type="button"
           onClick={() => setShowAuth(true)}
@@ -217,36 +215,32 @@ function Landing() {
         </p>
       </section>
 
-      {/* STATS */}
+      {/* FEATURES — 3 cards com illustrations cohesas (Higgsfield/GPT Image 2)
+          em ink line-art com glow rosa no foco. Descoberta · Padrão · Sinal. */}
       <section
         style={{
           maxWidth: 1100,
           margin: "0 auto",
           padding: "30px 28px 60px",
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
           gap: 18,
         }}
       >
-        <Stat
-          icon={<Activity size={20} />}
-          title="Brief 10h30"
-          desc="IA gera narrativas + temas em alta + ideias prontas todo dia."
+        <Feature
+          src="/generated/feature-descobrir.webp"
+          title="Descoberta"
+          desc="IA varre milhares de posts, vídeos e notícias e isola o que está pegando agora no teu nicho."
         />
-        <Stat
-          icon={<Layers size={20} />}
-          title="4 fontes cruzadas"
-          desc="Instagram, YouTube, notícias e newsletters em um só radar."
+        <Feature
+          src="/generated/feature-padrao.webp"
+          title="Padrão"
+          desc="Cruza IG, YouTube e notícias. O que aparece em 3 fontes ao mesmo tempo vira narrativa."
         />
-        <Stat
-          icon={<Zap size={20} />}
-          title="Salvar / Recriar"
-          desc="Bookmark cross-plataforma + bridge pro Sequência Viral e Reels Viral."
-        />
-        <Stat
-          icon={<Eye size={20} />}
-          title="Hashtag tracker"
-          desc="Termos quentes da semana com cliques pra filtrar grid."
+        <Feature
+          src="/generated/feature-sinal.webp"
+          title="Sinal"
+          desc="Brief diário 10h: 3 narrativas dominantes, 5 temas em alta e 3 ideias prontas pra postar."
         />
       </section>
 
@@ -615,35 +609,56 @@ const brandDot: React.CSSProperties = {
   boxShadow: "0 0 8px var(--color-rdv-rec)",
 };
 
-function Stat({
-  icon,
+function Feature({
+  src,
   title,
   desc,
 }: {
-  icon: React.ReactNode;
+  src: string;
   title: string;
   desc: string;
 }) {
   return (
-    <div className="rdv-card" style={{ padding: "22px 24px" }}>
+    <div
+      className="rdv-card"
+      style={{
+        padding: "24px 24px 26px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        textAlign: "center",
+      }}
+    >
       <div
         style={{
-          width: 40,
-          height: 40,
-          background: "var(--color-rdv-ink)",
-          color: "var(--color-rdv-paper)",
+          width: 140,
+          height: 140,
+          background: "var(--color-rdv-cream)",
+          border: "1.5px solid var(--color-rdv-line)",
+          marginBottom: 16,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          marginBottom: 14,
+          overflow: "hidden",
         }}
       >
-        {icon}
+        <img
+          src={src}
+          alt=""
+          width={140}
+          height={140}
+          loading="lazy"
+          decoding="async"
+          style={{ width: "100%", height: "100%", objectFit: "contain" }}
+        />
       </div>
-      <div className="rdv-display" style={{ fontSize: 22, lineHeight: 1, marginBottom: 6 }}>
+      <div
+        className="rdv-display"
+        style={{ fontSize: 24, lineHeight: 1, marginBottom: 8 }}
+      >
         {title}
       </div>
-      <p style={{ fontSize: 13, lineHeight: 1.45, color: "var(--color-rdv-muted)" }}>
+      <p style={{ fontSize: 13, lineHeight: 1.5, color: "var(--color-rdv-muted)" }}>
         {desc}
       </p>
     </div>

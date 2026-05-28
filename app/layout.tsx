@@ -60,12 +60,27 @@ export const metadata: Metadata = {
     type: "website",
     locale: "pt_BR",
     siteName: "Radar Viral",
+    // OG estático gerado via Higgsfield (GPT Image 2) — brutalist editorial.
+    // Sobrescreve `opengraph-image.tsx` (Satori) que fica como fallback caso
+    // este JPG desapareça do bundle estático.
+    images: [
+      {
+        url: "/generated/og.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Radar Viral — Brief editorial diário, em 2 minutos",
+        type: "image/jpeg",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Radar Viral — Brief editorial diário",
     description: "3 narrativas + 5 temas + 3 ideias. Cruzando 3 plataformas. Todo dia 10h.",
     creator: "@madureira",
+    // Mesma OG higgsfield. Twitter prefere absolute mas relative funciona com
+    // metadataBase setado acima.
+    images: ["/generated/og.jpg"],
   },
   // Facebook domain verification — pareia com Pixel 1653489742563071 no
   // Madureira BM (704738313932684). Atribui radar.kaleidos.com.br ao BM
