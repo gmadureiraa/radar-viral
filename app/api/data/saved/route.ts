@@ -133,6 +133,54 @@ export async function POST(req: Request) {
   }
 }
 
+/**
+ * PATCH /api/data/saved — atualiza a `note` de um bookmark existente.
+ * Body: { platform, refId, note }. note="" limpa a anotação (diferente do
+ * POST, que usa COALESCE e nunca apaga). Só mexe em rows do próprio user.
+ */
+export async function PATCH(req: Request) {
+  if (!isDbConfigured()) return NextResponse.json({ error: "DB ausente" }, { status: 503 });
+  const auth = await requireUserId(req);
+  if ("response" in auth) return auth.response;
+
+  let body: { platform?: string; refId?: string; note?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
+  }
+
+  if (!body.platform || !body.refId) {
+    return NextResponse.json({ error: "platform + refId obrigatórios" }, { status: 400 });
+  }
+
+  // Normaliza: string vazia/só-espaço vira NULL (limpa a nota). Cap em 1000 chars.
+  const rawNote = typeof body.note === "string" ? body.note.trim() : "";
+  const note = rawNote.length > 0 ? rawNote.slice(0, 1000) : null;
+
+  const sql = getSql();
+  try {
+    const rows = (await sql`
+      UPDATE saved_items
+         SET note = ${note}
+       WHERE user_id = ${auth.user.id}
+         AND platform = ${body.platform}
+         AND ref_id = ${body.refId}
+      RETURNING id
+    `) as unknown as Array<{ id: number }>;
+    if (rows.length === 0) {
+      return NextResponse.json({ error: "Bookmark não encontrado" }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true, note });
+  } catch (err) {
+    console.error("[/api/data/saved PATCH] failed:", err);
+    return NextResponse.json(
+      { error: process.env.VERCEL_ENV === "production" ? "Falha" : String(err) },
+      { status: 500 },
+    );
+  }
+}
+
 export async function DELETE(req: Request) {
   if (!isDbConfigured()) return NextResponse.json({ error: "DB ausente" }, { status: 503 });
   const auth = await requireUserId(req);
