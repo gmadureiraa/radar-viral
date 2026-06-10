@@ -8,6 +8,8 @@
  */
 
 import { NextResponse } from "next/server";
+import { lookup } from "node:dns/promises";
+import net from "node:net";
 import { rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -25,6 +27,60 @@ const ALLOWED_HOSTS = [
   "bytecdn.com",
   "twimg.com", // X avatars (best-effort)
 ];
+
+/**
+ * Defense-in-depth contra SSRF: mesmo com a allowlist de hosts acima, um
+ * atacante poderia, via DNS rebinding, fazer um hostname allowlistado resolver
+ * pra um IP interno (loopback/RFC1918/link-local/metadata cloud 169.254.169.254).
+ * Aqui rejeitamos qualquer IP privado/reservado. NÃO altera a allowlist —
+ * é uma checagem extra sobre o destino real do fetch.
+ */
+function isPrivateIp(ip: string): boolean {
+  const kind = net.isIP(ip);
+  if (kind === 4) {
+    const p = ip.split(".").map(Number);
+    if (p.length !== 4 || p.some((n) => Number.isNaN(n))) return true;
+    const [a, b] = p;
+    if (a === 10) return true; // 10.0.0.0/8
+    if (a === 127) return true; // loopback
+    if (a === 0) return true; // 0.0.0.0/8
+    if (a === 169 && b === 254) return true; // link-local + metadata
+    if (a === 172 && b >= 16 && b <= 31) return true; // 172.16.0.0/12
+    if (a === 192 && b === 168) return true; // 192.168.0.0/16
+    if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT 100.64.0.0/10
+    if (a >= 224) return true; // multicast/reserved
+    return false;
+  }
+  if (kind === 6) {
+    const lower = ip.toLowerCase();
+    if (lower === "::1" || lower === "::") return true; // loopback / unspecified
+    if (lower.startsWith("fc") || lower.startsWith("fd")) return true; // ULA fc00::/7
+    if (lower.startsWith("fe80")) return true; // link-local
+    // IPv4-mapped (::ffff:a.b.c.d) — extrai e revalida como v4
+    const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+    if (mapped) return isPrivateIp(mapped[1]);
+    return false;
+  }
+  // net.isIP === 0 → não é IP literal; deixa o DNS resolver decidir.
+  return false;
+}
+
+/**
+ * Resolve o hostname e garante que NENHUM endereço resolvido seja privado.
+ * Retorna true se o destino é seguro (todos os IPs públicos).
+ */
+async function isUpstreamHostSafe(hostname: string): Promise<boolean> {
+  // Hostname já é IP literal? checa direto.
+  if (net.isIP(hostname)) return !isPrivateIp(hostname);
+  try {
+    const addrs = await lookup(hostname, { all: true });
+    if (addrs.length === 0) return false;
+    return addrs.every((a) => !isPrivateIp(a.address));
+  } catch {
+    // Falha de DNS → bloqueia (fail-closed).
+    return false;
+  }
+}
 
 export async function GET(req: Request) {
   const url = new URL(req.url).searchParams.get("url");
@@ -61,6 +117,15 @@ export async function GET(req: Request) {
     return NextResponse.json(
       { error: "rate limited" },
       { status: 429, headers: { "Retry-After": String(rl.retryAfterSec ?? 60) } },
+    );
+  }
+
+  // Defense-in-depth: bloqueia destino que resolve pra IP privado/loopback
+  // (proteção contra SSRF via DNS rebinding). Não substitui a allowlist acima.
+  if (!(await isUpstreamHostSafe(hostname))) {
+    return NextResponse.json(
+      { error: "host not allowed" },
+      { status: 403 },
     );
   }
 
