@@ -2,20 +2,22 @@
 
 > Inteligência diária cross-platform — IG · YouTube · notícias · newsletters. Brief IA + temas em alta.
 
-**Versão oficial** desde 2026-05-01 (Next 16 + sidebar fixed + design alinhado a Sequência Viral / Reels Viral · cream + REC coral + brutalist).
+**Versão oficial e única em produção** desde o cutover de 2026-05-08 (Next 16 + sidebar fixed + design alinhado a Sequência Viral / Reels Viral · cream + REC coral + brutalist). Domínio prod: `radar.kaleidos.com.br`.
 
-**v1 legacy** preservada em `code/_archive/viral-hunter-v1-legacy/` (Vite + Cream & Lime original) — Gabriel mantém por gosto pessoal e ainda viva em prod via cron até paridade total nesta versão.
+> A v1 legacy (`viral-hunter`, Vite + Cream & Lime) foi **descontinuada e removida** em 2026-05-08 — Vercel project, repos GitHub e pasta local apagados. "Radar Viral" é o nome canônico daqui pra frente; "Viral Hunter" não existe mais.
 
-## Sucessão gradual
+## Módulos
 
-| Módulo | Status v2 |
+| Módulo | Status |
 |---|---|
-| Dashboard (Brief IA + Temas + Narrativas + Ideias) | ✅ pronto |
-| Niche switcher | 🟡 pendente |
-| Instagram, YouTube, News, Newsletters, Saved, Settings, Admin | 🟡 placeholders linkando v1 |
-| Crons (refresh / brief / newsletters) | 🟡 ainda na v1 — quando migrar, desativar v1 prod |
+| Dashboard (Brief IA + Temas + Narrativas + Ideias) | ✅ |
+| Niche switcher | ✅ |
+| Instagram, YouTube, News, Newsletters, TikTok, Threads, Trends, Saved, Settings, Admin | ✅ |
+| Referrals (indique-e-ganhe) | ✅ |
+| Billing (Stripe checkout/portal/webhook) | ✅ |
+| Crons (refresh / brief / scrape-tiktok / scrape-threads / weekly-digest / idle-5d / power-user) | ✅ rodando neste projeto via `vercel.json` |
 
-A v2 lê do **mesmo Neon DB** que v1 popula via cron. Zero risco pra dados durante a transição.
+Plataformas suportadas: Instagram, YouTube, TikTok, Threads, RSS, Newsletter. X/Twitter foi removido em 2026-05-08 (rotas `/api/cron/scrape-twitter` e `/api/data/twitter` ficam como stubs desativados pra evitar 404 em clients legados).
 
 ---
 
@@ -25,7 +27,7 @@ A v2 lê do **mesmo Neon DB** que v1 popula via cron. Zero risco pra dados duran
 - **React 19** + TypeScript strict
 - **Tailwind CSS 4** (zero JS config, `@theme` em CSS puro)
 - **Bun** runtime + package manager
-- **Neon Postgres** (compartilhado com v1)
+- **Neon Postgres** (dedicado)
 - **Neon Auth** (Better Auth) — mesmo provider do RV
 - `jose` pra validação JWT server-side
 - `framer-motion` + `sonner` + `lucide-react`
@@ -57,20 +59,29 @@ app/
   app/                      # /app — autenticado
     layout.tsx              # sidebar fixed (ink+REC) + auth gate
     page.tsx                # /app — dashboard com Brief IA + temas + ideias
-    instagram/page.tsx      # → ComingSoon (link pra v1)
-    youtube/page.tsx        # → ComingSoon
-    news/page.tsx           # → ComingSoon
-    newsletters/page.tsx    # → ComingSoon
-    saved/page.tsx          # → ComingSoon
-    settings/page.tsx       # → ComingSoon
-    admin/page.tsx          # → ComingSoon (admin only via sidebar guard)
+    instagram/page.tsx      # Radar IG por nicho
+    youtube/page.tsx        # catálogo curado global
+    news/page.tsx           # notícias classificadas
+    newsletters/page.tsx    # feed compartilhado (Gmail)
+    tiktok/page.tsx         # Radar TikTok
+    threads/page.tsx        # Radar Threads
+    trends/page.tsx         # temas em alta
+    saved/page.tsx          # bookmarks cross-platform
+    settings/page.tsx       # fontes, nichos, perfil
+    settings/referrals/     # indique-e-ganhe
+    onboarding/page.tsx     # primeiro acesso
+    precos/page.tsx         # planos (Stripe)
+    admin/page.tsx          # admin only via sidebar guard
 
   api/
-    brief/route.ts          # GET /api/brief?niche= — lê daily_briefs do v1
+    brief/route.ts          # GET /api/brief?niche= — lê daily_briefs
+    cron/                   # refresh · brief · scrape-tiktok/threads · digests
+    data/                   # leitura por plataforma
+    stripe/                 # checkout · portal · webhook
+    referrals/              # track · me · list
 
 components/
   auth-dialog.tsx           # Email + Google OAuth
-  coming-soon.tsx           # Placeholder com link pra v1
 
 lib/
   auth-client.ts            # Neon Auth lazy + getJwtToken via getSession()
@@ -78,56 +89,39 @@ lib/
   admin-emails.ts           # client-side admin check (UX only)
 ```
 
-## Estado atual
-
-| Módulo | Status |
-|---|---|
-| Landing pública | ✅ pronta (hero + AuthDialog + stats + CTA) |
-| Login Email/Google | ✅ funcional |
-| Sidebar layout | ✅ sticky desktop + mobile drawer |
-| Dashboard com Brief IA | ✅ MVP — temas em alta com ranking + sinal-meter, narrativas, ideias |
-| Instagram/YouTube/News/Newsletters/Saved/Settings/Admin | 🟡 placeholders com link "Abrir na v1" |
-
-A v2 **lê** do mesmo Neon DB que o v1 popula via cron. **Não há cron próprio na v2** — quando todas as páginas estiverem migradas, podemos decidir se vamos consolidar ou manter o split.
-
 ## Setup
 
 ```bash
-cd code/radar-viral-v2
+cd code/radar-viral
 cp .env.example .env.local
-# preenche DATABASE_URL, NEON_AUTH_*, APIFY_API_KEY (opcional pra leitura),
-# CRON_SECRET, NEXT_PUBLIC_SITE_URL
+# preenche DATABASE_URL, NEON_AUTH_*, APIFY_API_KEY,
+# CRON_SECRET, NEXT_PUBLIC_SITE_URL e chaves Stripe
 
 bun install
-bun run dev    # http://localhost:3000
+bun run dev        # http://localhost:3000
+bun run build      # build de produção
+bun run typecheck  # tsc --noEmit
 ```
 
 ## Env vars
 
+Ver `.env.example` pra lista completa. Principais:
+
 ```bash
-DATABASE_URL=                          # mesmo do v1 (postgres://...neon...)
-NEXT_PUBLIC_NEON_AUTH_URL=             # mesmo do v1
-NEON_AUTH_JWKS_URL=                    # mesmo do v1
-APIFY_API_KEY=                         # opcional (só se v2 implementar scrape)
-GEMINI_API_KEY=                        # opcional
-CRON_SECRET=                           # opcional
+DATABASE_URL=                          # Neon (postgres://...neon...)
+NEXT_PUBLIC_NEON_AUTH_URL=             # Neon Auth
+NEON_AUTH_JWKS_URL=                    # JWKS pra validação JWT
+APIFY_API_KEY=                         # scrapes (TikTok/Threads/IG)
+GEMINI_API_KEY=                        # brief IA + classificação
+CRON_SECRET=                           # auth dos crons
+STRIPE_SECRET_KEY=                     # billing
 NEXT_PUBLIC_SITE_URL=https://radar.kaleidos.com.br
 ```
 
 ## Deploy
 
-Vercel project separado de `viral-hunter` (v1). Sugerido:
-- Project name: `radar-viral-v2`
-- Domain alvo: `radar2.kaleidos.com.br` (ou previews) até validar paridade
-- Quando paridade estiver feita: trocar alias de `radar.kaleidos.com.br` pra v2 e arquivar v1
+- **Vercel project:** `radar-viral`
+- **Domain prod:** `radar.kaleidos.com.br`
+- **Crons:** definidos em `vercel.json` (gated por `RADAR_V2_CRON_ENABLED`)
 
-## Próximos passos sugeridos
-
-1. **Niche switcher** no sidebar (cripto / marketing / IA)
-2. **Migrar IG Radar** primeiro (página mais usada da v1)
-3. **News + Newsletters** depois (lóğica simples, leitura pura)
-4. **YouTube** + canal hub
-5. **Saved** (cross-platform bookmark)
-6. **Settings** + admin
-
-Cada módulo: ler do mesmo DB, design refeito com sidebar.
+Não fazer deploy sem aprovação. `bun run build` + `bun run typecheck` devem passar limpos antes.
