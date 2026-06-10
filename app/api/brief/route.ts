@@ -4,6 +4,14 @@
  *
  * Reusa a tabela `daily_briefs` do Radar v1 (mesmo Neon DB). v2 não popula,
  * só lê — o cron `/api/cron/brief` da v1 continua sendo source of truth.
+ *
+ * IMPORTANTE — escopo do brief: o brief é **global por nicho**, NÃO por usuário.
+ * A query filtra apenas por `niche` (sem `user_id`), de propósito: o cron gera
+ * UM brief por nicho por dia e ele é compartilhado por todos os usuários daquele
+ * nicho. A ausência de scoping por usuário aqui é intencional, não um bug de RLS.
+ * Auth (`requireUserId`) serve só pra gatekeeping de acesso ao endpoint, não pra
+ * particionar dados. Se um dia o brief virar per-user, adicionar `user_id` ao
+ * filtro aqui E à geração no cron `/api/cron/brief` (ver nota "Multi-tenant" lá).
  */
 
 import { NextResponse } from "next/server";
